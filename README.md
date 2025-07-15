@@ -1,5 +1,5 @@
 # Welcome to mstechdiva-code
-My approach is simple: kick the tires, break things, figure out why they broke, then share what I learned. You won't find theoretical explanations here - everything in this repo comes from me actually building, testing, and, yes, probably seeing the sunrise more times than I care to count.
+My approach is simple: kick the tires, break things, figure out why they broke, then share what I learned. You won't find theoretical explanations here. Everything in this repo comes from me building, testing, and, yes, seeing the sunrise more times than I care to count. I will also discuss the evolving build methodology.
 
 I write about what I've actually tried, what worked, what didn't, and the actual setup process.
 
@@ -18,7 +18,7 @@ Check out the latest posts at [MsTechDiva.com](https://mstechdiva.com) - not eve
 
 ## How to Use This Repository
 
-Each folder corresponds to a specific blog post or series. You'll find:
+Each folder corresponds to a specific blog post or series of blog posts. You'll find:
 - **Clear folder structure** organized by date and topic
 - **Detailed comments** explaining each code section
 - **Ready-to-run examples** with setup instructions
