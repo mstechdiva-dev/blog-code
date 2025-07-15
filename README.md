@@ -3,15 +3,18 @@ My approach is simple: kick the tires, break things, figure out why they broke, 
 
 I write about what I've actually tried, what worked, what didn't, and the actual setup process.
 
-## What You'll Find Here
+## What's Coming
 
-This repository contains all the code examples, tutorials, and hands-on projects featured in my blog posts. Every piece of code here comes from my actual experience - the real setup code, sample projects, and most importantly, what it's really like to work with these technologies.
+As I dive deeper into quantum computing, AI, and emerging technologies with my "kick the tires" approach, you'll find the real code, setup instructions, and experiences from my hands-on exploration.
 
-### Current Topics Include:
-- **Quantum Computing** - Exploring the fundamentals and practical applications
-- **AI & Machine Learning** - Breaking down complex algorithms into digestible examples
-- **Emerging Technologies** - Code demos for cutting-edge tech concepts
-- **Technical Deep Dives** - Hands-on explorations of advanced topics
+### Topics I've been exploring in my blog:
+- **Quantum Computing** -     Diving deep into Majorana down to Quantum Computing cybersecurity.
+- **AI & Machine Learning** - Breaking down complex algorithms and practical applications  
+- **Emerging Technologies** - Hands-on exploration of cutting-edge tech concepts
+- **Technical Deep Dives** - Real-world experiences with advanced topics
+
+Check out the latest posts at [MsTechDiva.com](https://mstechdiva.com) - not every post will have code, but when I do get hands-on with actual implementation, the code examples will end up here!
+
 
 ## How to Use This Repository
 
