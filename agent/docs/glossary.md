@@ -12,28 +12,28 @@ This glossary describes every script, configuration file, and document in the Cl
 **`setup-script.sh`**
 - **Purpose**: Main project initialization and system setup
 - **Function**: Detects operating system, installs dependencies (Node.js, Python, Nginx, PM2), creates project structure, sets up virtual environments
-- **When to use**: First-time installation on any supported platform
-- **Key features**: Universal OS detection, automated dependency installation, error handling
+- **When to use**: First-time installation on supported platforms
+- **Key features**: Multi-platform OS detection, automated dependency installation, error handling
 
 **`ubuntu_setup_script.sh`**  
 - **Purpose**: Ubuntu-specific optimized setup script
 - **Function**: Tailored installation process for Ubuntu 20.04/22.04 systems with Ubuntu-specific package management
 - **When to use**: When running specifically on Ubuntu systems for optimized performance
-- **Key features**: Ubuntu package repositories, version-specific optimizations
+- **Key features**: Ubuntu package repositories, multi-environment support (AWS/GCP/Azure/local/WSL), version-specific optimizations
 
 ### Deployment Scripts
 
 **`deploy-script.sh`**
-- **Purpose**: Universal application deployment and updates
+- **Purpose**: Cross-platform application deployment and updates
 - **Function**: Builds frontend, starts backend services, configures Nginx, manages PM2 processes
 - **When to use**: Deploy new versions or restart services
 - **Key features**: Health checks, rollback capabilities, service management
 
 **`ubuntu_deploy_script.sh`**
 - **Purpose**: Ubuntu-optimized deployment process
-- **Function**: Ubuntu-specific deployment with optimized paths and service configurations
+- **Function**: Ubuntu-specific deployment with optimized paths and service configurations across different Ubuntu environments
 - **When to use**: Deploying on Ubuntu systems for maximum compatibility
-- **Key features**: Ubuntu service integration, systemd management
+- **Key features**: Ubuntu service integration, systemd management, multi-cloud environment support
 
 ### Monitoring & Maintenance Scripts
 
@@ -44,48 +44,38 @@ This glossary describes every script, configuration file, and document in the Cl
 - **Key features**: Resource monitoring, automated alerts, performance metrics
 
 **`backup-script.sh`**
-- **Purpose**: Comprehensive data backup and archival
-- **Function**: Creates backups of database, configuration files, application code, logs, and system information
-- **When to use**: Regular data protection (daily/weekly via cron)
-- **Key features**: Incremental backups, compression, retention policies, integrity verification
+- **Purpose**: Comprehensive backup and recovery system
+- **Function**: Creates automated backups of database, configuration, code, and system state with integrity validation
+- **When to use**: Regular automated backups or manual backup creation
+- **Key features**: Incremental backups, compression, integrity checking, automated cleanup
 
 **`health-check-script.sh`**
-- **Purpose**: Comprehensive system health analysis
-- **Function**: Performs deep health checks on all system components, services, and configurations
-- **When to use**: Troubleshooting or regular health assessments
-- **Key features**: Multi-layer health validation, detailed reporting, issue identification
+- **Purpose**: Comprehensive system health assessment
+- **Function**: Performs detailed health checks on all system components, generates health scores, provides recommendations
+- **When to use**: Regular health assessments, troubleshooting, system validation
+- **Key features**: Weighted health scoring, detailed diagnostics, actionable recommendations
 
-### Additional Utility Scripts
-
-**Various monitoring and utility scripts** (referenced in documentation)
-- **`status.sh`**: Quick system status overview
-- **`recover.sh`**: Emergency recovery and service restoration
-- **`alert.sh`**: Automated alerting system for critical issues
-- **`daily-report.sh`**: Generates daily system and usage reports
-- **`cleanup.sh`**: Database and log file maintenance
-- **`db-monitor.sh`**: Database-specific monitoring and statistics
-- **`collect-support-logs.sh`**: Gathers diagnostic information for troubleshooting
-- **`dashboard.sh`**: Real-time status dashboard display
+**`recover-script.sh`**
+- **Purpose**: Emergency recovery and restoration procedures
+- **Function**: Automated recovery from common failure scenarios, service restoration, data recovery
+- **When to use**: System failures, service outages, emergency situations
+- **Key features**: Automated diagnostics, service restoration, backup recovery
 
 ---
 
-##  Python Application Files
+## 🐍 Python Application Files (.py)
 
-**`main_fastapi_app.py`**
-- **Purpose**: Core FastAPI backend application
-- **Function**: Handles API requests, integrates with Claude API, manages user sessions, implements security
-- **Key features**: 
-  - RESTful API endpoints for chat functionality
-  - Claude API integration with error handling
-  - Rate limiting and security middleware
-  - Database interaction and logging
-  - Health monitoring endpoints
-  - Session management
+**`main_fastapi_app.py`** (or `main.py`)
+- **Purpose**: Core FastAPI application and API endpoints
+- **Function**: Handles HTTP requests, integrates with Anthropic API, manages conversation flow, implements security middleware
+- **Key components**: API routes, authentication, request/response handling, Claude integration
+- **Dependencies**: FastAPI, Anthropic SDK, SQLAlchemy, Pydantic
 
 **`database.py`**
-- **Purpose**: Database models and data access layer
-- **Function**: Defines SQLAlchemy models, database initialization, CRUD operations
-- **Key features**:
+- **Purpose**: Database models, connections, and data management
+- **Function**: SQLite/PostgreSQL integration, data models, CRUD operations, session management
+- **Key components**: Database models, connection pooling, data validation, migration support
+- **Features**: 
   - User session tracking
   - Conversation logging
   - System metrics storage
@@ -128,75 +118,98 @@ This glossary describes every script, configuration file, and document in the Cl
 
 **`docs/glossary.md`** (this file)
 - **Purpose**: Complete project file and script reference
-- **Function**: Describes every component in the project with purpose, functionality, and usage guidance
-- **Audience**: Developers and system administrators
+- **Function**: Comprehensive documentation of all project components, their purposes, and relationships
+- **Audience**: Developers, system administrators, documentation reference
 
 ---
 
 ## ⚙️ Configuration Files
 
-**`nginx_config.txt`**
-- **Purpose**: Nginx web server configuration template
-- **Function**: Defines reverse proxy settings, SSL configuration, security headers, rate limiting
-- **Key features**: HTTPS setup, security hardening, performance optimization
-
-**`requirements.txt`**
-- **Purpose**: Python dependency specification
-- **Function**: Lists all required Python packages with version constraints
-- **Dependencies**: FastAPI, Anthropic SDK, SQLAlchemy, security libraries
+**`.env`**
+- **Purpose**: Environment variables and application configuration
+- **Function**: Stores API keys, database URLs, security settings, feature flags
+- **Security**: File permissions set to 600 (owner read/write only)
+- **Key settings**: Anthropic API key, database configuration, CORS settings, rate limits
 
 **`package.json`**
-- **Purpose**: Node.js frontend dependency specification  
-- **Function**: Defines React application dependencies and build scripts
-- **Key dependencies**: React, TypeScript, Material-UI, Axios
+- **Purpose**: Frontend Node.js project configuration and dependencies
+- **Function**: Defines React application dependencies, build scripts, development tools
+- **Key scripts**: `start`, `build`, `test`, `lint`, `format`
+- **Dependencies**: React, TypeScript, Material-UI, testing frameworks
 
-**`.env` files**
-- **Purpose**: Environment variable configuration
-- **Function**: Stores sensitive configuration like API keys, database URLs, security settings
-- **Security**: Contains encrypted/secured application secrets
+**`requirements.txt`**
+- **Purpose**: Python backend dependencies specification
+- **Function**: Defines all Python packages required for the backend application
+- **Key packages**: FastAPI, Anthropic SDK, SQLAlchemy, Uvicorn, Pydantic
 
-**`license-file.md`**
-- **Purpose**: MIT License terms
-- **Function**: Defines legal usage terms and conditions for the project
+**`nginx.conf` / Site configurations**
+- **Purpose**: Reverse proxy and web server configuration
+- **Function**: Routes requests between frontend/backend, SSL termination, security headers
+- **Key features**: Load balancing, rate limiting, static file serving, security policies
 
----
+**`.gitignore`**
+- **Purpose**: Git version control exclusion rules
+- **Function**: Prevents sensitive files and build artifacts from being committed to repository
+- **Exclusions**: Environment files, logs, node_modules, Python cache, database files
 
-##  Frontend Files
-
-**`react_index_css.css`**
-- **Purpose**: Global React application styles
-- **Function**: Defines CSS variables, component styling, responsive design, dark mode support
-- **Key features**: Modern UI styling, accessibility features, mobile responsiveness
-
----
-
-##  Project Structure Files
-
-**Generated/Runtime Files**
-- **`data/`**: Database files and user data storage
-- **`logs/`**: Application and system log files  
-- **`backups/`**: Automated backup archives
-- **`frontend/build/`**: Compiled React application
-- **`backend/venv/`**: Python virtual environment
+**`pm2.config.js` / PM2 ecosystem**
+- **Purpose**: Process manager configuration
+- **Function**: Defines how Node.js and Python processes should be managed in production
+- **Features**: Auto-restart, clustering, log rotation, monitoring
 
 ---
 
-## 🔄 Script Relationships
+## 📊 Database & Storage Files
 
-### Setup Flow
-1. `setup-script.sh` → System preparation and dependency installation
-2. `deploy-script.sh` → Application deployment and service startup
-3. `monitor-script.sh` → Ongoing system monitoring
+**`agent_database.db`**
+- **Purpose**: SQLite database for development and small deployments
+- **Location**: `data/` directory
+- **Contains**: User sessions, conversation logs, system metrics, API usage data
+- **Backup**: Automatically included in backup scripts
 
-### Maintenance Flow
-1. `backup-script.sh` → Regular data protection
-2. `health-check-script.sh` → System validation and diagnostics
-3. `troubleshooting-guide.md` → Issue resolution procedures
+**Log Files (`logs/` directory)**
+- **`app.log`**: Application runtime logs
+- **`setup.log`**: Installation and setup logs
+- **`deployment.log`**: Deployment process logs
+- **`health-check.log`**: System health monitoring logs
+- **`backup.log`**: Backup operation logs
 
-### Development Flow
-1. `main_fastapi_app.py` → Backend development and API implementation
-2. `database.py` → Data layer management and models
-3. `api-documentation.md` → API reference and testing
+---
+
+## 🎨 Frontend Files
+
+**`src/` directory**
+- **Purpose**: React TypeScript application source code
+- **Components**: Chat interface, message handling, user authentication
+- **Styling**: Material-UI components, responsive design, dark/light themes
+
+**`public/` directory**
+- **Purpose**: Static assets and HTML template
+- **Files**: index.html, favicon, manifest.json, robots.txt
+
+**`build/` directory**
+- **Purpose**: Production-ready compiled frontend application
+- **Generated by**: `npm run build` command
+- **Served by**: Nginx in production, development server in development
+
+---
+
+## 🔧 Utility Scripts
+
+**`status.sh`**
+- **Purpose**: Quick system status overview
+- **Function**: Shows PM2 processes, system resources, service health
+- **Usage**: `./scripts/status.sh`
+
+**`logs.sh`**
+- **Purpose**: Centralized log viewing utility
+- **Function**: Displays and follows various application logs
+- **Usage**: `./scripts/logs.sh [service]`
+
+**`restart.sh`**
+- **Purpose**: Graceful service restart utility
+- **Function**: Restarts all services in proper order
+- **Usage**: `./scripts/restart.sh`
 
 ---
 
@@ -205,9 +218,9 @@ This glossary describes every script, configuration file, and document in the Cl
 **For New Installations:**
 1. Read `readme.md` for project overview
 2. Follow `docs/installation-guide.md` for detailed setup
-3. Run `setup-script.sh` for automated installation
+3. Run `ubuntu_setup_script.sh` for Ubuntu systems
 4. Configure using `docs/configuration-guide.md`
-5. Deploy with `deploy-script.sh`
+5. Deploy with `ubuntu_deploy_script.sh` or `deploy-script.sh`
 
 **For Ongoing Operations:**
 1. Monitor with `monitor-script.sh`
@@ -228,16 +241,4 @@ This glossary describes every script, configuration file, and document in the Cl
 
 ---
 
-## 📊 File Count Summary
-
-- **Shell Scripts**: 13+ automation and setup scripts
-- **Python Files**: 2 core application files
-- **Documentation**: 7 comprehensive guides (including this glossary)
-- **Configuration**: 6+ system and application configuration files
-- **Frontend**: 2+ React application and styling files
-
-**Total**: 30+ files providing a complete, production-ready AI agent deployment system
-
----
-
-*This glossary covers all major scripts and files in the Claude AI Agent project. Each component is designed to work together to create a complete, production-ready AI agent deployment system with comprehensive setup, monitoring, backup, troubleshooting, and maintenance capabilities.*
+*This glossary covers all major scripts and files in the Claude AI Agent project. Each component is designed to work together to create a complete, production-ready AI agent deployment system with comprehensive setup, monitoring, backup, troubleshooting, and maintenance capabilities specifically optimized for Ubuntu environments while supporting multiple deployment scenarios.*
