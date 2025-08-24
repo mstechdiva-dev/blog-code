@@ -1,22 +1,13 @@
 # Configuration Guide
 
-Comprehensive configuration guide for Claude AI Agent universal deployment system.
-
-## Overview
-
-The universal configuration system provides:
-- 🌐 **Auto-detection** of cloud providers, OS types, and user configurations
-- 🔒 **Secure defaults** with production-ready settings
-- 📊 **Comprehensive monitoring** and performance tuning options
-- 🔄 **Dynamic adaptation** to different deployment scenarios
+Comprehensive configuration guide for Claude AI Agent deployment system.
 
 ## Configuration Files
 
-### **Primary Configuration: .env**
+### Primary Configuration: .env
+**Location:** `~/claude-ai-agent/.env`
 
-**Location:** `claude-ai-agent/.env`
-
-The main configuration file containing all system settings. This file is automatically created by the setup script with secure defaults and auto-detected values.
+The main configuration file that contains all system settings. This file is automatically created by the setup script with secure defaults.
 
 ```bash
 # View current configuration
@@ -25,12 +16,13 @@ cat .env
 # Edit configuration
 nano .env
 
-# File permissions are automatically set to 600 (secure)
+# Secure the file (automatically set to 600)
+ls -la .env
 ```
 
 ## Complete .env Configuration Reference
 
-### **🔑 Anthropic API Configuration**
+### 🔑 Anthropic API Configuration
 ```bash
 # Your Anthropic API key (REQUIRED)
 ANTHROPIC_API_KEY=sk-ant-your-key-here
@@ -46,11 +38,11 @@ MAX_TOKENS=1000
 1. Visit [https://console.anthropic.com/](https://console.anthropic.com/)
 2. Create account or sign in
 3. Generate API key
-4. Replace `your_anthropic_api_key_here` in .env
+4. Copy to your .env file
 
-### **🌐 Server Configuration**
+### 🖥️ Server Configuration
 ```bash
-# Server bind address (0.0.0.0 for all interfaces)
+# Server host (0.0.0.0 for all interfaces)
 HOST=0.0.0.0
 
 # Backend server port
@@ -59,173 +51,236 @@ PORT=8000
 # Debug mode (False for production)
 DEBUG=False
 
-# Environment type
+# Environment mode
 ENVIRONMENT=production
 ```
 
-### **💾 Database Configuration**
+### 📊 Database Configuration
 ```bash
-# Database connection string
+# SQLite database path (default)
 DATABASE_URL=sqlite:///./data/agent_database.db
 
-# Alternative database examples:
-# PostgreSQL: postgresql://user:pass@host:port/dbname
-# MySQL: mysql://user:pass@host:port/dbname
+# PostgreSQL example
+# DATABASE_URL=postgresql://user:password@localhost:5432/claude_agent
+
+# MySQL example
+# DATABASE_URL=mysql://user:password@localhost:3306/claude_agent
 ```
 
-### **🔒 Security Configuration**
+### 🔒 Security Configuration
 ```bash
-# Secret key for session security (auto-generated)
-SECRET_KEY=your_generated_secret_key_here
+# Secret key for sessions (auto-generated)
+SECRET_KEY=your-secret-key-here
 
-# Session token expiration (minutes)
+# Token expiration time (minutes)
 ACCESS_TOKEN_EXPIRE_MINUTES=60
 ```
 
-### **☁️ Cloud and Infrastructure (Auto-Detected)**
+### 🌐 CORS Configuration
 ```bash
-# Cloud provider (auto-detected)
-CLOUD_PROVIDER=aws|gcp|azure|local|wsl
-
-# Public IP address (auto-detected)
-STATIC_IP=auto_detected_ip
-
-# Instance ID (auto-detected)
-INSTANCE_ID=auto_detected_id
-
-# Project root path (auto-detected based on user)
-PROJECT_ROOT=/path/to/claude-ai-agent
-```
-
-### **🌍 CORS Configuration**
-```bash
-# Allowed origins (* for all, comma-separated for specific)
+# Allowed origins (* for all, specific domains for production)
 ALLOWED_ORIGINS=*
+
+# Production example:
+# ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
 
 # Enable/disable CORS
 CORS_ENABLED=True
-
-# For production, specify domains:
-# ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
 ```
 
-### **⚡ Rate Limiting**
+### ⚡ Rate Limiting
 ```bash
 # Maximum requests per window
 RATE_LIMIT_REQUESTS=100
 
 # Rate limit window in seconds (3600 = 1 hour)
 RATE_LIMIT_WINDOW=3600
+
+# Burst limiting
+RATE_LIMIT_BURST=10
 ```
 
-### **📋 Logging Configuration**
+### 📋 Logging Configuration
 ```bash
 # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 LOG_LEVEL=INFO
 
 # Log file path
-LOG_FILE=/path/to/claude-ai-agent/logs/app.log
+LOG_FILE=/home/ubuntu/claude-ai-agent/logs/app.log
+
+# Enable syslog integration
+SYSLOG_ENABLED=True
 ```
 
-### **📊 Monitoring Configuration**
+### 📈 Monitoring Configuration
 ```bash
-# Health check interval in seconds
+# Health check interval (seconds)
 HEALTH_CHECK_INTERVAL=300
 
-# Enable/disable metrics collection
+# Enable metrics collection
 METRICS_COLLECTION=True
+
+# System monitoring
+SYSTEM_MONITORING=True
 ```
 
-### **💾 Backup Configuration**
+### 💾 Backup Configuration
 ```bash
-# Backup retention in days
+# Backup retention days
 BACKUP_RETENTION_DAYS=30
 
-# Enable/disable automatic backups
+# Enable automatic backups
 AUTO_BACKUP=True
+
+# Backup schedule (cron format)
+BACKUP_SCHEDULE="0 3 * * *"
+
+# Backup directory
+BACKUP_DIR=/home/ubuntu/claude-ai-agent/backups
 ```
 
-## Platform-Specific Configurations
-
-### **AWS Configuration**
-The setup script automatically detects AWS and configures:
+### ☁️ Cloud Provider Configuration
 ```bash
+# Cloud provider (auto-detected)
 CLOUD_PROVIDER=aws
-STATIC_IP=auto_detected_from_metadata
+
+# Static IP address (auto-detected)
+STATIC_IP=your.public.ip.address
+
+# Instance ID (auto-detected for cloud instances)
 INSTANCE_ID=i-1234567890abcdef0
+
+# Project root path
+PROJECT_ROOT=/home/ubuntu/claude-ai-agent
 ```
 
-### **Google Cloud Platform**
-```bash
-CLOUD_PROVIDER=gcp
-STATIC_IP=auto_detected_from_metadata
-INSTANCE_ID=auto_detected_from_metadata
-```
+## Configuration Validation
 
-### **Microsoft Azure**
-```bash
-CLOUD_PROVIDER=azure
-STATIC_IP=auto_detected_from_metadata
-INSTANCE_ID=auto_detected_from_metadata
-```
+### Environment Variables
+Important configuration values and their requirements:
 
-### **Local/VPS Systems**
-```bash
-CLOUD_PROVIDER=local
-STATIC_IP=auto_detected_external_ip
-INSTANCE_ID=local
-```
+**ANTHROPIC_API_KEY**
+- **Required**: Yes
+- **Format**: Must start with `sk-ant-`
+- **Security**: Keep secret, never commit to version control
 
-### **WSL (Windows Subsystem for Linux)**
-```bash
-CLOUD_PROVIDER=wsl
-STATIC_IP=127.0.0.1
-INSTANCE_ID=wsl
-```
+**HOST**
+- **Default**: `0.0.0.0`
+- **Description**: Server binding address
+- **Security**: Use `127.0.0.1` for local-only access
 
-## User-Specific Path Configuration
+**PORT**
+- **Default**: `8000`
+- **Description**: Backend server port
+- **Notes**: Must match Nginx proxy configuration
 
-The system automatically sets project paths based on detected user:
+**DEBUG**
+- **Default**: `False`
+- **Options**: `True`, `False`
+- **Production**: Always set to `False`
 
-### **Cloud Provider Users**
-```bash
-# AWS
-ubuntu user → /home/ubuntu/claude-ai-agent
-ec2-user → /home/ec2-user/claude-ai-agent
+**ENVIRONMENT**
+- **Default**: `production`
+- **Options**: `development`, `staging`, `production`
+- **Description**: Application environment mode
 
-# GCP
-Any user → /home/{username}/claude-ai-agent
+### Database Configuration
 
-# Azure
-azureuser → /home/azureuser/claude-ai-agent
-admin → /home/admin/claude-ai-agent
-```
+**DATABASE_URL**
+- **Default**: `sqlite:///./data/agent_database.db`
+- **SQLite**: `sqlite:///path/to/database.db`
+- **PostgreSQL**: `postgresql://user:pass@host:port/dbname`
+- **MySQL**: `mysql://user:pass@host:port/dbname`
 
-### **Local System Users**
-```bash
-# Standard users
-$HOME/claude-ai-agent
+**Database Schema**
+The application creates these tables automatically:
+- `conversation_logs` - All chat interactions
+- `user_sessions` - Session tracking and statistics
+- `system_metrics` - Performance and health metrics
+- `api_usage` - API usage and cost tracking
 
-# Root user
-/root/claude-ai-agent
-```
+### Security Configuration
+
+**SECRET_KEY**
+- **Required**: Yes
+- **Generate**: `openssl rand -hex 32`
+- **Description**: Used for session security and JWT tokens
+- **Security**: Must be unique and kept secret
+
+**ACCESS_TOKEN_EXPIRE_MINUTES**
+- **Default**: `60`
+- **Description**: Session token expiration time in minutes
+
+### CORS Configuration
+
+**ALLOWED_ORIGINS**
+- **Default**: `*` (allow all origins)
+- **Production**: Set to your specific domain
+- **Examples**: 
+  - `https://yourdomain.com`
+  - `http://localhost:3000,https://yourdomain.com`
+
+**CORS_ENABLED**
+- **Default**: `True`
+- **Description**: Enable/disable CORS headers
+
+### Rate Limiting
+
+**RATE_LIMIT_REQUESTS**
+- **Default**: `100`
+- **Description**: Maximum requests per window
+
+**RATE_LIMIT_WINDOW**
+- **Default**: `3600` (1 hour)
+- **Description**: Rate limit window in seconds
+
+### Logging Configuration
+
+**LOG_LEVEL**
+- **Default**: `INFO`
+- **Options**: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`
+- **Development**: Use `DEBUG`
+- **Production**: Use `INFO` or `WARNING`
+
+**LOG_FILE**
+- **Default**: `/home/ubuntu/claude-ai-agent/logs/app.log`
+- **Description**: Main application log file path
 
 ## Nginx Configuration
 
-The setup script automatically creates nginx configuration at:
-`/etc/nginx/sites-available/claude-agent`
-
-### **Basic Configuration**
+### Basic Configuration
 ```nginx
+# /etc/nginx/sites-available/claude-agent
 server {
-    listen 80 default_server;
-    server_name _;
+    listen 80;
+    server_name your-domain.com;
     
-    client_max_body_size 10M;
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    
+    # Rate limiting
+    limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+    limit_req_zone $binary_remote_addr zone=general:10m rate=30r/s;
     
     # Frontend
     location / {
-        proxy_pass http://localhost:3000;
+        root /home/ubuntu/claude-ai-agent/frontend/build;
+        index index.html;
+        try_files $uri $uri/ /index.html;
+        
+        # Caching for static assets
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+    
+    # Backend API
+    location /api/ {
+        limit_req zone=api burst=20 nodelay;
+        proxy_pass http://127.0.0.1:8000/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -234,31 +289,17 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
-        proxy_read_timeout 86400;
-    }
-    
-    # Backend API
-    location /api {
-        proxy_pass http://localhost:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 86400;
     }
     
     # Health check endpoint
     location /health {
-        proxy_pass http://localhost:8000/health;
+        proxy_pass http://127.0.0.1:8000/health;
         access_log off;
     }
 }
 ```
 
-### **SSL Configuration (Production)**
+### SSL Configuration (Optional)
 ```nginx
 server {
     listen 443 ssl http2;
@@ -282,15 +323,13 @@ server {
 
 ## PM2 Configuration
 
-The deployment script automatically configures PM2 processes:
-
-### **Process Configuration**
+### Process Configuration
 ```bash
 # Backend process
 pm2 start "uvicorn main:app --host 0.0.0.0 --port 8000" \
     --name claude-backend \
     --watch \
-    --ignore-watch="node_modules logs data backups" \
+    --ignore-watch="node_modules logs data" \
     --max-memory-restart 500M \
     --time
 
@@ -301,17 +340,17 @@ pm2 start "npx serve -s build -l 3000" \
     --time
 ```
 
-### **PM2 Ecosystem File (Advanced)**
-Create `ecosystem.config.js` for advanced configuration:
+### PM2 Ecosystem File (Optional)
 ```javascript
+// ecosystem.config.js
 module.exports = {
   apps: [
     {
       name: 'claude-backend',
       script: 'uvicorn',
       args: 'main:app --host 0.0.0.0 --port 8000',
-      cwd: '/path/to/claude-ai-agent/backend',
-      interpreter: '/path/to/claude-ai-agent/backend/venv/bin/python',
+      cwd: '/home/ubuntu/claude-ai-agent/backend',
+      interpreter: '/home/ubuntu/claude-ai-agent/backend/venv/bin/python',
       watch: false,
       max_memory_restart: '500M',
       env: {
@@ -322,7 +361,7 @@ module.exports = {
       name: 'claude-frontend',
       script: 'serve',
       args: '-s build -l 3000',
-      cwd: '/path/to/claude-ai-agent/frontend',
+      cwd: '/home/ubuntu/claude-ai-agent/frontend',
       watch: false,
       max_memory_restart: '200M'
     }
@@ -332,87 +371,47 @@ module.exports = {
 
 ## Firewall Configuration
 
-### **UFW (Ubuntu Firewall)**
-The setup script automatically configures UFW if available:
+### UFW (Ubuntu Firewall)
 ```bash
 # Enable UFW
 sudo ufw enable
 
-# Allow essential ports
+# Allow SSH
 sudo ufw allow ssh
+
+# Allow HTTP/HTTPS
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
+
+# Allow API port (if needed for direct access)
 sudo ufw allow 8000/tcp
 
 # Check status
 sudo ufw status
 ```
 
-### **Cloud Provider Firewalls**
-Configure these rules in your cloud provider console:
+### Cloud Provider Firewalls
 
-**AWS Security Groups:**
-- HTTP (80) - 0.0.0.0/0
-- HTTPS (443) - 0.0.0.0/0
-- Custom TCP (8000) - 0.0.0.0/0
-- SSH (22) - Your IP only
-
-**GCP Firewall Rules:**
-- allow-http: tcp:80
-- allow-https: tcp:443
-- allow-api: tcp:8000
-- allow-ssh: tcp:22 (restricted source)
-
-**Azure Network Security Groups:**
-- HTTP_Allow: Port 80, Any source
-- HTTPS_Allow: Port 443, Any source
-- API_Allow: Port 8000, Any source
-- SSH_Allow: Port 22, Restricted source
-
-## Environment-Specific Settings
-
-### **Development Environment**
-```bash
-DEBUG=True
-LOG_LEVEL=DEBUG
-ENVIRONMENT=development
-CORS_ENABLED=True
-ALLOWED_ORIGINS=http://localhost:3000
-MAX_TOKENS=1000
+**AWS Lightsail Firewall Rules:**
 ```
-
-### **Staging Environment**
-```bash
-DEBUG=False
-LOG_LEVEL=INFO
-ENVIRONMENT=staging
-CORS_ENABLED=True
-ALLOWED_ORIGINS=https://staging.yourdomain.com
-MAX_TOKENS=1000
-```
-
-### **Production Environment**
-```bash
-DEBUG=False
-LOG_LEVEL=WARNING
-ENVIRONMENT=production
-CORS_ENABLED=True
-ALLOWED_ORIGINS=https://yourdomain.com
-MAX_TOKENS=500
+HTTP (80) - Anywhere (0.0.0.0/0)
+HTTPS (443) - Anywhere (0.0.0.0/0)
+Custom TCP (8000) - Anywhere (for direct backend access if needed)
+SSH (22) - Your IP only (recommended)
 ```
 
 ## Performance Tuning
 
-### **System Limits**
+### System Limits
 ```bash
-# Add to /etc/security/limits.conf
+# /etc/security/limits.conf
 ubuntu soft nofile 65536
 ubuntu hard nofile 65536
 ```
 
-### **Nginx Performance**
+### Nginx Performance
 ```nginx
-# Add to /etc/nginx/nginx.conf
+# /etc/nginx/nginx.conf adjustments
 worker_processes auto;
 worker_connections 1024;
 keepalive_timeout 65;
@@ -420,21 +419,47 @@ gzip on;
 gzip_types text/plain application/json text/css application/javascript;
 ```
 
-### **PM2 Performance**
+### PM2 Performance
 ```bash
-# Use cluster mode for CPU-intensive tasks
+# Set PM2 to use cluster mode for CPU-intensive tasks
 pm2 start app.js -i max  # Use all CPU cores
+```
 
-# Set memory limits
-pm2 start app.js --max-memory-restart 200M
+## Environment-Specific Settings
+
+### Development
+```bash
+DEBUG=True
+LOG_LEVEL=DEBUG
+ENVIRONMENT=development
+CORS_ENABLED=True
+ALLOWED_ORIGINS=http://localhost:3000
+```
+
+### Staging
+```bash
+DEBUG=False
+LOG_LEVEL=INFO
+ENVIRONMENT=staging
+CORS_ENABLED=True
+ALLOWED_ORIGINS=https://staging.yourdomain.com
+```
+
+### Production
+```bash
+DEBUG=False
+LOG_LEVEL=WARNING
+ENVIRONMENT=production
+CORS_ENABLED=True
+ALLOWED_ORIGINS=https://yourdomain.com
 ```
 
 ## Configuration Validation
 
-### **Check Configuration**
+### Check Configuration
 ```bash
 # Test environment file loading
-cd /path/to/claude-ai-agent/backend
+cd /home/ubuntu/claude-ai-agent/backend
 source venv/bin/activate
 python -c "
 import os
@@ -446,7 +471,7 @@ print('Database:', os.getenv('DATABASE_URL'))
 "
 ```
 
-### **Test API Connection**
+### Test API Connection
 ```bash
 # Test Anthropic API connection
 python -c "
@@ -467,107 +492,55 @@ except Exception as e:
 "
 ```
 
-### **Validate System Configuration**
-```bash
-# Run comprehensive configuration check
-./scripts/health-check.sh
-
-# Check specific configurations
-./scripts/monitor.sh
-```
-
 ## Security Best Practices
 
-### **File Permissions**
-The setup script automatically sets secure permissions:
-```bash
-# Environment file (sensitive)
-chmod 600 .env
+1. **API Key Security**
+   - Never commit `.env` files to version control
+   - Use environment-specific API keys
+   - Rotate keys regularly
 
-# Scripts (executable)
-chmod 755 scripts/*.sh
+2. **Server Security**
+   - Keep system packages updated
+   - Use strong passwords
+   - Enable SSH key authentication only
+   - Configure fail2ban for brute force protection
 
-# Data directory
-chmod 755 data/
-chmod 644 data/*.db
+3. **Application Security**
+   - Use HTTPS in production
+   - Set appropriate CORS origins
+   - Enable rate limiting
+   - Validate all inputs
 
-# Log directory
-chmod 755 logs/
-chmod 644 logs/*.log
-```
-
-### **API Key Security**
-- Never commit `.env` files to version control
-- Use environment-specific API keys
-- Rotate keys regularly
-- Monitor API usage for anomalies
-
-### **Network Security**
-- Use HTTPS in production
-- Set appropriate CORS origins
-- Enable rate limiting
-- Monitor failed authentication attempts
-
-### **Database Security**
-- Regular automated backups
-- Database integrity checks
-- Secure file permissions
-- Monitor database size and performance
+4. **File Permissions**
+   - Set `.env` file to 600 (owner read/write only)
+   - Secure log directory access
+   - Protect backup files
 
 ## Troubleshooting Configuration
 
-### **Common Issues**
+### Common Issues
 
-**Environment Variables Not Loading**
-```bash
-# Check if .env file exists and has correct permissions
-ls -la /path/to/claude-ai-agent/.env
-# Should show: -rw------- (600 permissions)
+**API Key Not Working:**
+- Verify key starts with `sk-ant-`
+- Check for extra spaces or characters
+- Ensure key has sufficient credits
 
-# Test loading
-cd backend && source venv/bin/activate
-python -c "from dotenv import load_dotenv; load_dotenv(); print('Loaded')"
-```
+**Services Not Starting:**
+- Check port availability: `netstat -tlnp | grep :8000`
+- Verify file permissions
+- Check logs: `pm2 logs`
 
-**Database Connection Issues**
-```bash
-# Check database file permissions
-ls -la /path/to/claude-ai-agent/data/
-# Ensure user owns the files
+**Database Issues:**
+- Ensure data directory exists and is writable
+- Check database URL format
+- Verify SQLite installation
 
-# Test database connectivity
-sqlite3 /path/to/claude-ai-agent/data/agent_database.db ".tables"
-```
+**CORS Errors:**
+- Check `ALLOWED_ORIGINS` setting
+- Verify frontend and backend URLs match
+- Test with `ALLOWED_ORIGINS=*` temporarily
 
-**API Key Issues**
-```bash
-# Verify API key format (should start with 'sk-ant-')
-grep ANTHROPIC_API_KEY /path/to/claude-ai-agent/.env
-
-# Test API key validity
-./scripts/health-check.sh
-```
-
-**Port Conflicts**
-```bash
-# Check what's using your ports
-sudo netstat -tlnp | grep :8000
-sudo netstat -tlnp | grep :3000
-
-# Kill conflicting processes
-sudo kill -9 PID_NUMBER
-```
-
-### **Configuration Recovery**
-```bash
-# Reset to default configuration
-./scripts/setup.sh
-
-# Restore from backup
-cp backups/env_backup_YYYYMMDD.backup .env
-
-# Regenerate configuration
-./scripts/recover.sh
-```
-
-For additional troubleshooting, see [Troubleshooting Guide](troubleshooting-guide.md).
+For additional configuration help, see:
+- [Installation Guide](installation-guide.md) for setup issues
+- [Monitoring Guide](monitoring-guide.md) for performance tuning
+- [Troubleshooting Guide](troubleshooting-guide.md) for specific problems
