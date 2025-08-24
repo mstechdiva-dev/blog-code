@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# Claude AI Agent Ubuntu Universal Setup Script
-# Version: FINAL v1.2 - Ubuntu Universal
+# Claude AI Agent Ubuntu Setup Script
+# Version: FINAL v1.2 - Ubuntu Multi-Environment Support
 # Works on Ubuntu 20.04/22.04 across AWS, GCP, Azure, local, and WSL
 
 set -e  # Exit on any error
 set -u  # Exit on undefined variables
 
 echo "========================================"
-echo "Claude AI Agent - Ubuntu Universal Setup"
+echo "Claude AI Agent - Ubuntu Setup"
 echo "========================================"
 echo "Starting Ubuntu setup process at $(date)"
 echo
@@ -106,7 +106,7 @@ detect_ubuntu_environment() {
         exit 1
     fi
     
-    # Detect cloud provider
+    # Detect cloud provider or environment type
     if curl -s --max-time 3 http://169.254.169.254/latest/meta-data/instance-id >/dev/null 2>&1; then
         CLOUD_PROVIDER="aws"
         PUBLIC_IP=$(curl -s --max-time 5 http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "127.0.0.1")
@@ -125,14 +125,15 @@ detect_ubuntu_environment() {
         INSTANCE_ID="wsl-ubuntu"
     else
         CLOUD_PROVIDER="local"
-        PUBLIC_IP=$(curl -s --max-time 5 ifconfig.me 2>/dev/null || curl -s --max-time 5 icanhazip.com 2>/dev/null || echo "127.0.0.1")
-        INSTANCE_ID="ubuntu-local"
+        PUBLIC_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "127.0.0.1")
+        INSTANCE_ID="local-ubuntu"
     fi
     
-    # Set project root
+    # Set project root based on user and environment
     case "$CURRENT_USER" in
         "ubuntu") PROJECT_ROOT="/home/ubuntu/claude-ai-agent" ;;
         "azureuser") PROJECT_ROOT="/home/azureuser/claude-ai-agent" ;;
+        "ec2-user") PROJECT_ROOT="/home/ec2-user/claude-ai-agent" ;;
         "root") PROJECT_ROOT="/root/claude-ai-agent" ;;
         *) PROJECT_ROOT="$HOME/claude-ai-agent" ;;
     esac
@@ -209,347 +210,616 @@ check_ubuntu_system_requirements() {
     if [ "$version_major" -eq 20 ] || [ "$version_major" -eq 22 ]; then
         print_status "✅ Ubuntu version: $UBUNTU_VERSION ($UBUNTU_CODENAME)"
     else
-        print_error "❌ Unsupported Ubuntu version: $UBUNTU_VERSION. Required: 20.04 or 22.04"
+        print_error "❌ Unsupported Ubuntu version: $UBUNTU_VERSION. This script requires Ubuntu 20.04 LTS or Ubuntu 22.04 LTS."
     fi
     
-    # Check available disk space (require at least 5GB)
-    if command_exists df; then
-        local available_kb=$(df "$HOME" | awk 'NR==2 {print $4}')
-        local required_kb=5242880  # 5GB in KB
-        
-        if [ -n "$available_kb" ] && [ "$available_kb" -gt "$required_kb" ]; then
-            local available_gb=$((available_kb / 1024 / 1024))
-            print_status "✅ Sufficient disk space: ${available_gb}GB available"
-        else
-            local available_gb=$((available_kb / 1024 / 1024))
-            print_error "❌ Insufficient disk space: ${available_gb}GB available (5GB required)"
-        fi
-    fi
-    
-    # Check memory (warn if less than 1GB)
+    # Memory check
+    local memory_mb
     if command_exists free; then
-        local total_memory_gb=$(free -g | awk 'NR==2{print $2}')
-        if [ "$total_memory_gb" -ge 1 ]; then
-            print_status "✅ Memory: ${total_memory_gb}GB"
-        else
-            print_warning "⚠️ Low memory: ${total_memory_gb}GB (2GB+ recommended)"
+        memory_mb=$(free -m | awk '/^Mem:/ {print $2}')
+        if [ -n "$memory_mb" ]; then
+            if [ "$memory_mb" -lt 512 ]; then
+                print_warning "Low memory detected: ${memory_mb}MB. Recommended: 1GB+"
+            else
+                print_status "✅ Memory: ${memory_mb}MB"
+            fi
         fi
     fi
     
-    # Check internet connectivity
-    if ping -c 1 8.8.8.8 >/dev/null 2>&1; then
-        print_status "✅ Internet connectivity verified"
-    else
-        print_error "❌ No internet connectivity"
+    # Disk space check
+    local disk_gb
+    if command_exists df; then
+        disk_gb=$(df -BG / | awk 'NR==2 {gsub("G",""); print $4}')
+        if [ -n "$disk_gb" ] && [ "$disk_gb" -lt 2 ]; then
+            print_warning "Low disk space: ${disk_gb}GB available. Recommended: 5GB+"
+        else
+            print_status "✅ Disk space: ${disk_gb}GB available"
+        fi
     fi
     
-    print_status "Ubuntu system requirements check passed"
+    print_status "System requirements check passed"
 }
 
-# Function to install Ubuntu dependencies
+# Function to install Ubuntu system dependencies
 install_ubuntu_dependencies() {
     print_status "Installing Ubuntu system dependencies..."
     
-    # Update package lists
-    ubuntu_update_system
+    # Check if we can use sudo
+    if ! sudo -n true 2>/dev/null; then
+        print_error "This script requires sudo access. Please ensure your user has sudo privileges."
+    fi
     
-    # Essential Ubuntu packages
+    # Update package lists
+    print_status "Updating Ubuntu package lists..."
+    if ! sudo apt-get update; then
+        print_error "Failed to update package lists. Check your internet connection and apt configuration."
+    fi
+    
+    # Install essential packages
     local essential_packages=(
         "curl" "wget" "git" "htop" "unzip" "zip" "tree" "nano" "vim"
         "software-properties-common" "apt-transport-https" "ca-certificates"
-        "gnupg" "lsb-release" "jq" "bc" "sqlite3" "netcat" "build-essential"
+        "gnupg" "lsb-release" "jq" "bc" "sqlite3" "netcat" "telnet"
+        "build-essential" "python3-dev" "python3-venv" "python3-pip"
     )
     
-    print_status "Installing essential Ubuntu packages..."
-    ubuntu_install_package "${essential_packages[@]}"
+    print_status "Installing essential Ubuntu packages: ${essential_packages[*]}"
+    if ! ubuntu_install_package "${essential_packages[@]}"; then
+        print_error "Failed to install essential packages"
+    fi
     
     # Verify critical tools are installed
-    local critical_tools=("curl" "wget" "git")
+    local critical_tools=("curl" "wget" "git" "python3" "pip3")
     for tool in "${critical_tools[@]}"; do
         if ! command_exists "$tool"; then
-            print_error "Critical tool '$tool' failed to install"
+            print_error "Critical tool '$tool' failed to install or is not in PATH"
         fi
     done
     
-    print_status "Ubuntu dependencies installed successfully"
+    print_status "Ubuntu system dependencies installed successfully"
 }
 
 # Function to install Node.js on Ubuntu
-install_ubuntu_nodejs() {
+install_nodejs() {
     print_status "Installing Node.js on Ubuntu..."
     
     if command_exists node; then
-        local node_version=$(node --version 2>/dev/null || echo "unknown")
+        local node_version
+        node_version=$(node --version 2>/dev/null || echo "unknown")
         print_status "Node.js already installed: $node_version"
         
         # Check if version is 16+ (required for React 18)
-        local major_version=$(echo "$node_version" | sed 's/v//' | cut -d. -f1)
+        local major_version
+        major_version=$(echo "$node_version" | sed 's/v//' | cut -d. -f1)
         if [ -n "$major_version" ] && [ "$major_version" -ge 16 ]; then
             print_status "Node.js version is acceptable"
             return 0
         else
-            print_warning "Node.js version $node_version is old. Upgrading..."
+            print_warning "Node.js version $node_version is old. Upgrading to latest LTS..."
         fi
     fi
     
-    # Add NodeSource repository for Ubuntu
-    print_status "Adding NodeSource repository for Ubuntu..."
-    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+    # Install Node.js from NodeSource repository
+    print_status "Adding Node.js repository for Ubuntu..."
+    if ! curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -; then
+        print_error "Failed to add Node.js repository. Check internet connection."
+    fi
     
-    # Install Node.js
     ubuntu_install_package "nodejs"
     
     # Verify installation
     if ! command_exists node || ! command_exists npm; then
-        print_error "Node.js or npm not found after installation"
+        print_error "Node.js installation failed. node or npm not found in PATH."
     fi
     
-    local node_version=$(node --version)
-    local npm_version=$(npm --version)
+    local node_version npm_version
+    node_version=$(node --version)
+    npm_version=$(npm --version)
     print_status "✅ Node.js installed: $node_version"
     print_status "✅ npm installed: $npm_version"
 }
 
-# Function to install Python on Ubuntu
-install_ubuntu_python() {
-    print_status "Installing Python on Ubuntu..."
+# Function to install Python virtual environment
+setup_python_environment() {
+    print_status "Setting up Python environment..."
     
-    # Python packages for Ubuntu
-    local python_packages=(
-        "python3" "python3-pip" "python3-venv" "python3-dev" 
-        "python3-setuptools" "python3-wheel"
-    )
-    
-    ubuntu_install_package "${python_packages[@]}"
-    
-    # Verify Python installation
+    # Verify Python 3 is available
     if ! command_exists python3; then
-        print_error "Python3 not found after installation"
+        print_error "Python 3 not found. This should have been installed with system dependencies."
     fi
     
+    local python_version
+    python_version=$(python3 --version)
+    print_status "Using Python: $python_version"
+    
+    # Install pip if not available
     if ! command_exists pip3; then
-        print_error "pip3 not found after installation"
+        print_status "Installing pip for Python 3..."
+        ubuntu_install_package "python3-pip"
     fi
     
-    local python_version=$(python3 --version)
-    local pip_version=$(pip3 --version)
-    print_status "✅ Python installed: $python_version"
-    print_status "✅ pip installed: $pip_version"
+    # Upgrade pip to latest version
+    print_status "Upgrading pip to latest version..."
+    if ! python3 -m pip install --upgrade pip; then
+        print_warning "Failed to upgrade pip, but continuing..."
+    fi
     
-    # Upgrade pip
-    python3 -m pip install --upgrade pip || print_warning "Failed to upgrade pip"
+    print_status "✅ Python environment ready"
 }
 
-# Function to install and configure Nginx on Ubuntu
-install_ubuntu_nginx() {
-    print_status "Installing Nginx on Ubuntu..."
-    
-    if command_exists nginx; then
-        print_status "Nginx already installed"
-        local nginx_version=$(nginx -v 2>&1 | head -1 || echo "version unknown")
-        print_status "Nginx version: $nginx_version"
-        return 0
-    fi
+# Function to install and configure Nginx
+install_nginx() {
+    print_status "Installing and configuring Nginx..."
     
     # Install Nginx
     ubuntu_install_package "nginx"
     
-    # Verify Nginx installation
+    # Verify installation
     if ! command_exists nginx; then
-        print_error "Nginx not found after installation"
+        print_error "Nginx installation failed"
     fi
     
-    # Enable and start Nginx
-    sudo systemctl enable nginx
-    sudo systemctl start nginx
+    # Start and enable Nginx
+    print_status "Starting Nginx service..."
+    if ! sudo systemctl start nginx; then
+        print_error "Failed to start Nginx"
+    fi
+    
+    if ! sudo systemctl enable nginx; then
+        print_warning "Failed to enable Nginx auto-start, but continuing..."
+    fi
     
     # Test Nginx configuration
     if ! sudo nginx -t; then
-        print_warning "Nginx configuration test failed"
+        print_error "Nginx configuration test failed"
     fi
     
-    local nginx_version=$(nginx -v 2>&1 | head -1)
-    print_status "✅ Nginx installed: $nginx_version"
+    print_status "✅ Nginx installed and running"
 }
 
-# Function to install PM2 on Ubuntu
-install_ubuntu_pm2() {
+# Function to install PM2
+install_pm2() {
     print_status "Installing PM2 process manager..."
     
-    if command_exists pm2; then
-        local pm2_version=$(pm2 --version)
-        print_status "PM2 already installed: $pm2_version"
-        return 0
-    fi
-    
     # Install PM2 globally
-    sudo npm install -g pm2
-    
-    # Verify PM2 installation
-    if ! command_exists pm2; then
-        print_error "PM2 not found after installation"
+    if ! npm install -g pm2; then
+        print_error "Failed to install PM2"
     fi
     
-    local pm2_version=$(pm2 --version)
-    print_status "✅ PM2 installed: $pm2_version"
+    # Verify installation
+    if ! command_exists pm2; then
+        print_error "PM2 installation failed"
+    fi
+    
+    # Setup PM2 startup script
+    print_status "Configuring PM2 startup..."
+    if pm2 startup | grep -q "sudo"; then
+        # Extract and run the startup command
+        local startup_cmd
+        startup_cmd=$(pm2 startup | grep "sudo" | tail -n 1)
+        if [ -n "$startup_cmd" ]; then
+            eval "$startup_cmd" || print_warning "PM2 startup configuration failed, but continuing..."
+        fi
+    fi
+    
+    local pm2_version
+    pm2_version=$(pm2 --version)
+    print_status "✅ PM2 installed: v$pm2_version"
 }
 
-# Function to create Ubuntu project structure
-create_ubuntu_project_structure() {
-    print_status "Creating Ubuntu project structure..."
+# Function to create project structure
+create_project_structure() {
+    print_status "Creating project structure..."
+    
+    print_status "Project will be created at: $PROJECT_ROOT"
     
     # Create main directory if it doesn't exist
     if [ ! -d "$PROJECT_ROOT" ]; then
-        mkdir -p "$PROJECT_ROOT"
+        if ! mkdir -p "$PROJECT_ROOT"; then
+            print_error "Failed to create project directory: $PROJECT_ROOT"
+        fi
     fi
     
     # Change to project directory
-    cd "$PROJECT_ROOT"
+    if ! cd "$PROJECT_ROOT"; then
+        print_error "Failed to change to project directory: $PROJECT_ROOT"
+    fi
     
     # Create subdirectories
     local subdirs=("backend" "frontend" "scripts" "logs" "data" "config" "backups" "docs")
     for dir in "${subdirs[@]}"; do
-        mkdir -p "$dir"
+        if ! mkdir -p "$dir"; then
+            print_error "Failed to create directory: $dir"
+        fi
     done
     
     # Create essential files
-    touch README.md .gitignore .env
+    touch README.md .gitignore .env || print_error "Failed to create essential files"
     
-    # Set proper permissions for Ubuntu
-    chown -R "$CURRENT_USER:$CURRENT_USER" "$PROJECT_ROOT" 2>/dev/null || {
-        sudo chown -R "$CURRENT_USER:$CURRENT_USER" "$PROJECT_ROOT"
-    }
+    # Set proper permissions
+    print_status "Setting file permissions..."
     
-    # Set directory permissions
-    find "$PROJECT_ROOT" -type d -exec chmod 755 {} \;
-    find "$PROJECT_ROOT" -type f -exec chmod 644 {} \;
-    chmod 755 "$PROJECT_ROOT/scripts"
-    
-    print_status "✅ Ubuntu project structure created at: $PROJECT_ROOT"
-}
-
-# Function to create .gitignore for Ubuntu environment
-create_ubuntu_gitignore() {
-    print_status "Creating Ubuntu .gitignore..."
-    
-    cat > .gitignore << 'EOF'
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-.venv/
-pip-log.txt
-.tox/
-.coverage
-.pytest_cache/
-
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Environment variables
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Logs
-logs/
-*.log
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Build outputs
-dist/
-build/
-*.egg-info/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Ubuntu specific
-*~
-.directory
-
-# Backup files
-backups/
-*.backup
-*.bak
-
-# Temporary files
-tmp/
-temp/
-*.tmp
-EOF
-    
-    chmod 644 .gitignore
-    print_status "✅ Ubuntu .gitignore created"
-}
-
-# Function to create Ubuntu environment file
-create_ubuntu_environment_file() {
-    print_status "Creating Ubuntu environment configuration..."
-    
-    # Generate secret key using Ubuntu system entropy
-    local secret_key
-    if command_exists openssl; then
-        secret_key=$(openssl rand -hex 32)
-    else
-        secret_key=$(date +%s | sha256sum | head -c 64)
+    # Set ownership (may fail in some environments)
+    if ! chown -R "$CURRENT_USER:$CURRENT_USER" "$PROJECT_ROOT" 2>/dev/null; then
+        print_warning "Could not set file ownership, but continuing..."
     fi
     
-    cat > .env << EOF
-# =====================================
-# Claude AI Agent - Ubuntu Configuration
-# =====================================
+    # Set directory permissions
+    if ! chmod -R 755 "$PROJECT_ROOT"; then
+        print_warning "Could not set directory permissions, but continuing..."
+    fi
+    
+    # Set secure permissions for .env
+    if ! chmod 600 "$PROJECT_ROOT/.env"; then
+        print_warning "Could not set .env permissions, but continuing..."
+    fi
+    
+    print_status "✅ Project structure created"
+}
+
+# Function to create environment configuration file
+create_environment_file() {
+    print_status "Creating environment configuration..."
+    
+    local env_file="$PROJECT_ROOT/.env"
+    
+    # Create .env file with default configuration
+    cat > "$env_file" << EOF
+# Claude AI Agent Configuration
+# Generated on $(date) for Ubuntu $UBUNTU_VERSION on $CLOUD_PROVIDER
 
 # Anthropic API Configuration
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
 MODEL_NAME=claude-3-sonnet-20240229
 MAX_TOKENS=1000
 
-# Ubuntu Server Configuration
+# Server Configuration
 HOST=0.0.0.0
 PORT=8000
 DEBUG=False
 ENVIRONMENT=production
 
-# Database Configuration (Ubuntu paths)
-DATABASE_URL=sqlite:///$PROJECT_ROOT/data/agent_database.db
+# Database Configuration
+DATABASE_URL=sqlite:///./data/agent_database.db
 
 # Security Configuration
-SECRET_KEY=$secret_key
+SECRET_KEY=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | base64 | head -c 32)
 ACCESS_TOKEN_EXPIRE_MINUTES=60
 
-# Ubuntu System Information
-UBUNTU_VERSION=$UBUNTU_VERSION
-UBUNTU_CODENAME=$UBUNTU_CODENAME
-CLOUD_PROVIDER=$CLOUD_PROVIDER
-UBUNTU_TYPE=$UBUNTU_TYPE
-STATIC_IP=$PUBLIC_IP
-INSTANCE_ID=$INSTANCE_ID
+# CORS Configuration
+ALLOWED_ORIGINS=*
+CORS_ENABLED=True
 
-# Ubuntu Project Paths
-PROJECT_ROOT=$PROJECT_ROOT
+# Rate Limiting
+RATE_LIMIT_REQUESTS=100
+RATE_LIMIT_WINDOW=3600
+RATE_LIMIT_BURST=10
+
+# Logging Configuration
+LOG_LEVEL=INFO
 LOG_FILE=$PROJECT_ROOT/logs/app.log
-DATA_DIR=$PROJECT_ROOT/data
-BACKUP_DIR=$PROJECT_ROOT/backups
+SYSLOG_ENABLED=True
 
-# CORS
+# Monitoring Configuration
+HEALTH_CHECK_INTERVAL=300
+METRICS_COLLECTION=True
+SYSTEM_MONITORING=True
+
+# Backup Configuration
+BACKUP_RETENTION_DAYS=30
+AUTO_BACKUP=True
+BACKUP_SCHEDULE="0 3 * * *"
+
+# System Information (Auto-detected)
+CLOUD_PROVIDER=$CLOUD_PROVIDER
+UBUNTU_VERSION=$UBUNTU_VERSION
+UBUNTU_TYPE=$UBUNTU_TYPE
+CURRENT_USER=$CURRENT_USER
+PROJECT_ROOT=$PROJECT_ROOT
+EOF
+    
+    # Set secure permissions
+    chmod 600 "$env_file"
+    
+    print_status "✅ Environment configuration created"
+    print_warning "⚠️  IMPORTANT: Edit $env_file and add your Anthropic API key before deployment"
+}
+
+# Function to create gitignore file
+create_gitignore() {
+    print_status "Creating .gitignore file..."
+    
+    cat > "$PROJECT_ROOT/.gitignore" << 'EOF'
+# Environment variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# nyc test coverage
+.nyc_output/
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# next.js build output
+.next
+
+# nuxt.js build output
+.nuxt
+
+# vuepress build output
+.vuepress/dist
+
+# Serverless directories
+.serverless
+
+# FuseBox cache
+.fusebox/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Virtual environments
+venv/
+ENV/
+env/
+.env
+
+# Database
+*.db
+*.sqlite3
+data/
+
+# Backups
+backups/
+*.backup
+*.bak
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+EOF
+
+    print_status "✅ .gitignore file created"
+}
+
+# Function to setup basic management scripts
+create_basic_scripts() {
+    print_status "Creating basic management scripts..."
+    
+    # Create scripts directory if it doesn't exist
+    mkdir -p "$PROJECT_ROOT/scripts"
+    
+    # Create a simple status script
+    cat > "$PROJECT_ROOT/scripts/status.sh" << 'EOF'
+#!/bin/bash
+echo "=== Claude AI Agent Status ==="
+echo "Time: $(date)"
+echo
+
+echo "PM2 Processes:"
+pm2 status 2>/dev/null || echo "PM2 not available or no processes running"
+echo
+
+echo "System Resources:"
+if command -v free >/dev/null; then
+    echo "Memory: $(free -h | awk '/^Mem:/ {print $3"/"$2}')"
+fi
+if command -v df >/dev/null; then
+    echo "Disk: $(df -h / | awk 'NR==2 {print $3"/"$2" ("$5" used)"}')"
+fi
+
+echo
+
+echo "Service Status:"
+if systemctl is-active --quiet nginx; then
+    echo "✅ Nginx: Running"
+else
+    echo "❌ Nginx: Not running"
+fi
+
+echo
+
+echo "API Health:"
+if curl -s --max-time 5 http://localhost:8000/health >/dev/null 2>&1; then
+    echo "✅ Backend API: Responding"
+else
+    echo "❌ Backend API: Not responding"
+fi
+
+if curl -s --max-time 5 http://localhost:3000 >/dev/null 2>&1; then
+    echo "✅ Frontend: Accessible"
+else
+    echo "❌ Frontend: Not accessible"
+fi
+EOF
+
+    chmod +x "$PROJECT_ROOT/scripts/status.sh"
+    
+    print_status "✅ Basic management scripts created"
+}
+
+# Function to run final validation
+run_final_validation() {
+    print_status "Running final validation..."
+    
+    # Check all required tools are available
+    local required_tools=("node" "npm" "python3" "pip3" "nginx" "pm2" "git" "curl")
+    local missing_tools=()
+    
+    for tool in "${required_tools[@]}"; do
+        if ! command_exists "$tool"; then
+            missing_tools+=("$tool")
+        fi
+    done
+    
+    if [ ${#missing_tools[@]} -gt 0 ]; then
+        print_error "Missing required tools: ${missing_tools[*]}"
+    fi
+    
+    # Check project structure
+    local required_dirs=("$PROJECT_ROOT/backend" "$PROJECT_ROOT/frontend" "$PROJECT_ROOT/scripts" "$PROJECT_ROOT/logs")
+    for dir in "${required_dirs[@]}"; do
+        if [ ! -d "$dir" ]; then
+            print_error "Required directory missing: $dir"
+        fi
+    done
+    
+    # Check configuration files
+    if [ ! -f "$PROJECT_ROOT/.env" ]; then
+        print_error "Environment file missing: $PROJECT_ROOT/.env"
+    fi
+    
+    print_status "✅ Final validation passed"
+}
+
+# Function to show completion message
+show_completion_message() {
+    echo
+    echo "========================================"
+    echo "✅ Ubuntu Setup completed successfully!"
+    echo "========================================"
+    echo
+    echo "🐧 Ubuntu Environment detected:"
+    echo "   Ubuntu Version: $UBUNTU_VERSION ($UBUNTU_CODENAME)"
+    echo "   Cloud Provider: $CLOUD_PROVIDER"
+    echo "   Ubuntu Type: $UBUNTU_TYPE"
+    echo "   Current User: $CURRENT_USER"
+    echo "   Public IP: $PUBLIC_IP"
+    echo
+    echo "📁 Project created at: $PROJECT_ROOT"
+    echo
+    echo "🔧 Next steps:"
+    echo "1. Configure your Anthropic API key:"
+    echo "   nano $PROJECT_ROOT/.env"
+    echo "   Replace 'your_anthropic_api_key_here' with your actual key"
+    echo
+    echo "2. Add your application code files to:"
+    echo "   $PROJECT_ROOT/backend/ (Python/FastAPI code)"
+    echo "   $PROJECT_ROOT/frontend/ (React application)"
+    echo
+    echo "3. Deploy your application:"
+    echo "   $PROJECT_ROOT/scripts/deploy.sh"
+    echo
+    echo "4. Monitor your system:"
+    echo "   $PROJECT_ROOT/scripts/status.sh"
+    echo
+    echo "📋 Available commands:"
+    echo "   ./scripts/status.sh    - Check system status"
+    echo "   ./scripts/deploy.sh    - Deploy application"
+    echo "   ./scripts/monitor.sh   - Real-time monitoring"
+    echo "   ./scripts/backup.sh    - Create backup"
+    echo "   ./scripts/recover.sh   - Emergency recovery"
+    echo
+    echo "🌐 Get your Anthropic API key at:"
+    echo "   https://console.anthropic.com/"
+    echo
+    echo "Setup completed at $(date)"
+}
+
+# Main execution function
+main() {
+    print_status "Claude AI Agent Ubuntu setup initiated"
+    
+    # Run Ubuntu environment detection first
+    setup_ubuntu_detection
+    
+    # Run all setup steps
+    check_ubuntu_user
+    setup_logging
+    check_ubuntu_system_requirements
+    install_ubuntu_dependencies
+    install_nodejs
+    setup_python_environment
+    install_nginx
+    install_pm2
+    create_project_structure
+    create_gitignore
+    create_environment_file
+    create_basic_scripts
+    run_final_validation
+    show_completion_message
+    
+    print_status "Ubuntu setup process completed successfully"
+}
+
+# Script entry point
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi
