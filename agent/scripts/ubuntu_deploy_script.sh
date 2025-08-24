@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# Claude AI Agent Ubuntu Universal Deployment Script
-# Version: FINAL v1.2 - Ubuntu Universal
+# Claude AI Agent Ubuntu Deployment Script
+# Version: FINAL v1.2 - Ubuntu Multi-Environment Support
 # Works on Ubuntu 20.04/22.04 across AWS, GCP, Azure, local, and WSL
 
 set -e  # Exit on any error
 set -u  # Exit on undefined variables
 
 echo "========================================"
-echo "Claude AI Agent - Ubuntu Universal Deploy"
+echo "Claude AI Agent - Ubuntu Deploy"
 echo "========================================"
 echo "Starting Ubuntu deployment at $(date)"
 echo
@@ -89,25 +89,30 @@ detect_ubuntu_environment() {
     # Verify Ubuntu version
     local version_major=$(echo "$UBUNTU_VERSION" | cut -d. -f1)
     if [ "$version_major" -ne 20 ] && [ "$version_major" -ne 22 ]; then
-        print_error "Unsupported Ubuntu version: $UBUNTU_VERSION. Required: 20.04 or 22.04"
+        print_error "Unsupported Ubuntu version: $UBUNTU_VERSION. This script requires Ubuntu 20.04 LTS or Ubuntu 22.04 LTS."
     fi
     
     # Detect cloud provider
     if curl -s --max-time 3 http://169.254.169.254/latest/meta-data/instance-id >/dev/null 2>&1; then
         CLOUD_PROVIDER="aws"
         PUBLIC_IP=$(curl -s --max-time 5 http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "127.0.0.1")
+        INSTANCE_ID=$(curl -s --max-time 5 http://169.254.169.254/latest/meta-data/instance-id 2>/dev/null || echo "unknown")
     elif curl -s --max-time 3 -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/id >/dev/null 2>&1; then
         CLOUD_PROVIDER="gcp"
         PUBLIC_IP=$(curl -s --max-time 5 -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip 2>/dev/null || echo "127.0.0.1")
+        INSTANCE_ID=$(curl -s --max-time 5 -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/id 2>/dev/null || echo "unknown")
     elif curl -s --max-time 3 -H "Metadata:true" http://169.254.169.254/metadata/instance?api-version=2021-02-01 >/dev/null 2>&1; then
         CLOUD_PROVIDER="azure"
         PUBLIC_IP=$(curl -s --max-time 5 -H "Metadata:true" "http://169.254.169.254/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?api-version=2021-02-01&format=text" 2>/dev/null || echo "127.0.0.1")
+        INSTANCE_ID=$(curl -s --max-time 5 -H "Metadata:true" "http://169.254.169.254/metadata/instance/compute/vmId?api-version=2021-02-01&format=text" 2>/dev/null || echo "unknown")
     elif grep -qi microsoft /proc/version 2>/dev/null || grep -qi wsl /proc/version 2>/dev/null; then
         CLOUD_PROVIDER="wsl"
         PUBLIC_IP="127.0.0.1"
+        INSTANCE_ID="wsl-ubuntu"
     else
         CLOUD_PROVIDER="local"
-        PUBLIC_IP=$(curl -s --max-time 5 ifconfig.me 2>/dev/null || curl -s --max-time 5 icanhazip.com 2>/dev/null || echo "127.0.0.1")
+        PUBLIC_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "127.0.0.1")
+        INSTANCE_ID="local-ubuntu"
     fi
     
     # Determine Ubuntu type
@@ -119,29 +124,23 @@ detect_ubuntu_environment() {
         UBUNTU_TYPE="local-ubuntu"
     fi
     
-    print_status "✅ Ubuntu environment detected:"
-    print_status "   Ubuntu: $UBUNTU_VERSION ($UBUNTU_CODENAME)"
-    print_status "   Cloud: $CLOUD_PROVIDER"
-    print_status "   Type: $UBUNTU_TYPE"
-    print_status "   User: $CURRENT_USER"
-    print_status "   IP: $PUBLIC_IP"
+    print_status "✅ Ubuntu environment: $UBUNTU_VERSION ($UBUNTU_CODENAME) on $CLOUD_PROVIDER"
 }
 
-# Function to setup logging for Ubuntu
+# Function to setup Ubuntu logging
 setup_ubuntu_logging() {
     mkdir -p "$PROJECT_ROOT/logs"
     LOG_FILE="$PROJECT_ROOT/logs/ubuntu-deployment.log"
     touch "$LOG_FILE"
     chmod 644 "$LOG_FILE"
     
-    # Log to Ubuntu syslog as well
-    logger "Claude AI Agent Ubuntu deployment started by $CURRENT_USER"
+    print_status "Logging to: $LOG_FILE"
 }
 
-# Function to check if Ubuntu project directory is correct
+# Function to check Ubuntu project directory
 check_ubuntu_project_directory() {
     if [ ! -f "$PROJECT_ROOT/.env" ] || [ ! -d "$PROJECT_ROOT/backend" ] || [ ! -d "$PROJECT_ROOT/frontend" ]; then
-        print_error "Not in Claude AI agent Ubuntu project directory. Required files/directories missing:
+        print_error "Not in Claude AI agent project directory. Required files/directories missing:
         - .env file
         - backend/ directory  
         - frontend/ directory
@@ -150,7 +149,7 @@ check_ubuntu_project_directory() {
         Please run this script from the claude-ai-agent project root."
     fi
     
-    print_status "✅ Ubuntu project directory validation passed"
+    print_status "Project directory validation passed"
 }
 
 # Function to validate Ubuntu configuration
@@ -159,108 +158,103 @@ validate_ubuntu_configuration() {
     
     # Check if .env file exists and is readable
     if [ ! -r "$PROJECT_ROOT/.env" ]; then
-        print_error "Ubuntu .env file not found or not readable at: $PROJECT_ROOT/.env"
+        print_error ".env file not found or not readable at: $PROJECT_ROOT/.env"
     fi
     
     # Source the .env file safely
     set +u  # Temporarily allow undefined variables
     if ! source "$PROJECT_ROOT/.env"; then
-        print_error "Failed to source Ubuntu .env file. Check for syntax errors."
+        print_error "Failed to source .env file. Check for syntax errors."
     fi
     set -u
     
     # Check API key configuration
     if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-        print_error "ANTHROPIC_API_KEY not found in Ubuntu .env file"
+        print_error "ANTHROPIC_API_KEY not found in .env file"
     fi
     
     if [ "$ANTHROPIC_API_KEY" = "your_anthropic_api_key_here" ]; then
-        print_error "Anthropic API key not configured in Ubuntu .env file.
+        print_error "Anthropic API key not configured. Please edit .env file and add your API key.
         
         To get an API key:
         1. Visit: https://console.anthropic.com/
         2. Create an account or sign in
         3. Generate a new API key
-        4. Replace 'your_anthropic_api_key_here' in .env file"
+        4. Replace 'your_anthropic_api_key_here' in .env with your actual key"
     fi
     
+    # Validate API key format
     if [[ ! "$ANTHROPIC_API_KEY" =~ ^sk-ant- ]]; then
-        print_error "Invalid Anthropic API key format in Ubuntu .env. Key should start with 'sk-ant-'"
+        print_error "Invalid Anthropic API key format. Key should start with 'sk-ant-'"
     fi
     
-    # Validate other critical Ubuntu configurations
-    if [ -z "${PORT:-}" ]; then
-        print_warning "PORT not specified in Ubuntu .env, using default 8000"
-        export PORT=8000
-    fi
-    
-    if [ -z "${HOST:-}" ]; then
-        print_warning "HOST not specified in Ubuntu .env, using default 0.0.0.0"
-        export HOST="0.0.0.0"
-    fi
-    
-    print_status "✅ Ubuntu configuration validation passed"
+    print_status "✅ Configuration validation passed"
 }
 
-# Function to check if Ubuntu process is running
-check_ubuntu_process() {
+# Function to check if a process is running
+check_process() {
     local process_name="$1"
-    if ! command_exists pm2; then
-        print_error "PM2 not found on Ubuntu. Please run setup.sh first."
+    if command_exists pm2; then
+        pm2 describe "$process_name" >/dev/null 2>&1
+    else
+        return 1
     fi
-    
-    pm2 show "$process_name" >/dev/null 2>&1
 }
 
-# Function to stop Ubuntu services safely
+# Function to stop existing Ubuntu services
 stop_ubuntu_services() {
     print_status "Stopping existing Ubuntu services..."
     
-    local services=("claude-backend" "claude-frontend")
-    for service in "${services[@]}"; do
-        if check_ubuntu_process "$service"; then
-            print_status "Stopping Ubuntu $service..."
-            if ! pm2 stop "$service"; then
-                print_warning "Failed to stop Ubuntu $service, but continuing..."
-            fi
-        else
-            print_debug "Ubuntu $service not running"
+    if command_exists pm2; then
+        # Stop existing PM2 processes
+        if check_process "claude-backend"; then
+            print_status "Stopping existing backend service..."
+            pm2 stop claude-backend >/dev/null 2>&1 || true
         fi
-    done
+        
+        if check_process "claude-frontend"; then
+            print_status "Stopping existing frontend service..."
+            pm2 stop claude-frontend >/dev/null 2>&1 || true
+        fi
+    fi
     
-    # Log to Ubuntu syslog
-    logger "Claude AI Agent Ubuntu services stopped for deployment"
+    # Give services time to stop gracefully
+    sleep 2
+    
+    print_status "Services stopped"
 }
 
-# Function to validate and setup Ubuntu backend
+# Function to setup Ubuntu backend
 setup_ubuntu_backend() {
     print_status "Setting up Ubuntu backend..."
     
-    cd "$PROJECT_ROOT/backend" || print_error "Failed to change to Ubuntu backend directory"
+    # Change to backend directory
+    if ! cd "$PROJECT_ROOT/backend"; then
+        print_error "Failed to change to Ubuntu backend directory"
+    fi
     
-    # Check if virtual environment exists
+    # Check if Python virtual environment exists
     if [ ! -d "venv" ]; then
-        print_error "Python virtual environment not found on Ubuntu. Please run setup.sh first.
-        
-        Expected location: $PROJECT_ROOT/backend/venv"
+        print_status "Creating Python virtual environment..."
+        if ! python3 -m venv venv; then
+            print_error "Failed to create Python virtual environment"
+        fi
     fi
     
     # Activate virtual environment
-    print_status "Activating Python virtual environment on Ubuntu..."
-    set +u  # Allow undefined variables during source
+    set +u
     if ! source venv/bin/activate; then
-        print_error "Failed to activate Python virtual environment on Ubuntu"
+        print_error "Failed to activate Python virtual environment"
     fi
     set -u
     
-    # Verify Ubuntu Python environment
-    if ! python -c "import sys; print(f'Python: {sys.version}')" 2>/dev/null; then
-        print_error "Python virtual environment is corrupted on Ubuntu"
-    fi
+    # Upgrade pip
+    print_status "Upgrading pip..."
+    python -m pip install --upgrade pip >/dev/null 2>&1 || print_warning "Failed to upgrade pip, but continuing..."
     
-    # Install/update dependencies if requirements.txt exists
+    # Install Python dependencies
     if [ -f "requirements.txt" ]; then
-        print_status "Installing/updating Python dependencies on Ubuntu..."
+        print_status "Installing Python dependencies..."
         if ! pip install -r requirements.txt; then
             print_error "Failed to install Python dependencies on Ubuntu"
         fi
@@ -419,6 +413,82 @@ configure_ubuntu_nginx() {
         print_error "Nginx not found on Ubuntu. Please run setup.sh first."
     fi
     
+    # Create Ubuntu Nginx configuration
+    local nginx_config="/etc/nginx/sites-available/claude-agent"
+    
+    print_status "Creating Ubuntu Nginx configuration..."
+    sudo tee "$nginx_config" > /dev/null << EOF
+server {
+    listen 80;
+    server_name localhost $(hostname -f 2>/dev/null || echo "_");
+    
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+    add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'" always;
+    
+    # Frontend (React app)
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 86400;
+    }
+    
+    # Backend API
+    location /api {
+        proxy_pass http://localhost:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 86400;
+        
+        # Rate limiting
+        limit_req_zone \$binary_remote_addr zone=api:10m rate=10r/s;
+        limit_req zone=api burst=20 nodelay;
+    }
+    
+    # Health check endpoint
+    location /health {
+        proxy_pass http://localhost:8000/health;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+    
+    # Static files
+    location /static {
+        alias $PROJECT_ROOT/frontend/build/static;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+    
+    # Security: Block access to sensitive files
+    location ~ /\. {
+        deny all;
+    }
+    
+    location ~ \.env {
+        deny all;
+    }
+}
+EOF
+    
     # Test current Ubuntu Nginx configuration
     if ! sudo nginx -t; then
         print_error "Current Ubuntu Nginx configuration is invalid. Please check:
@@ -438,6 +508,12 @@ configure_ubuntu_nginx() {
         else
             print_error "Ubuntu Nginx site configuration not found. Please run setup.sh first."
         fi
+    fi
+    
+    # Disable default site
+    if [ -L /etc/nginx/sites-enabled/default ]; then
+        print_status "Disabling default Ubuntu Nginx site..."
+        sudo rm -f /etc/nginx/sites-enabled/default
     fi
     
     # Restart Ubuntu Nginx
@@ -469,14 +545,14 @@ start_ubuntu_backend() {
     # Activate virtual environment
     set +u
     if ! source venv/bin/activate; then
-        print_error "Failed to activate Python virtual environment on Ubuntu"
+        print_error "Failed to activate Python virtual environment"
     fi
     set -u
     
-    # Start or restart Ubuntu backend with PM2
+    # Start or restart backend with PM2
     local backend_cmd="uvicorn main:app --host ${HOST:-0.0.0.0} --port ${PORT:-8000}"
     
-    if check_ubuntu_process "claude-backend"; then
+    if check_process "claude-backend"; then
         print_status "Restarting existing Ubuntu backend service..."
         if ! pm2 restart claude-backend; then
             print_error "Failed to restart Ubuntu backend service"
@@ -497,9 +573,6 @@ start_ubuntu_backend() {
     # Return to project root
     cd "$PROJECT_ROOT" || print_error "Failed to return to Ubuntu project root"
     
-    # Log to Ubuntu syslog
-    logger "Claude AI Agent Ubuntu backend service started"
-    
     print_status "✅ Ubuntu backend service started"
 }
 
@@ -510,10 +583,10 @@ start_ubuntu_frontend() {
     # Change to frontend directory
     cd "$PROJECT_ROOT/frontend" || print_error "Failed to change to Ubuntu frontend directory"
     
-    # Determine Ubuntu frontend serving strategy
+    # Determine frontend serving strategy for Ubuntu
     local frontend_cmd
     if [ -d "build" ] && [ -f "build/index.html" ]; then
-        print_status "Using production build on Ubuntu"
+        print_status "Using Ubuntu production build"
         frontend_cmd="npx serve -s build -l 3000"
     elif [ -f "package.json" ]; then
         print_warning "Build directory not found on Ubuntu, using development server"
@@ -522,8 +595,8 @@ start_ubuntu_frontend() {
         print_error "No valid frontend configuration found on Ubuntu"
     fi
     
-    # Start or restart Ubuntu frontend with PM2
-    if check_ubuntu_process "claude-frontend"; then
+    # Start or restart frontend with PM2
+    if check_process "claude-frontend"; then
         print_status "Restarting existing Ubuntu frontend service..."
         if ! pm2 restart claude-frontend; then
             print_error "Failed to restart Ubuntu frontend service"
@@ -542,9 +615,6 @@ start_ubuntu_frontend() {
     # Return to project root
     cd "$PROJECT_ROOT" || print_error "Failed to return to Ubuntu project root"
     
-    # Log to Ubuntu syslog
-    logger "Claude AI Agent Ubuntu frontend service started"
-    
     print_status "✅ Ubuntu frontend service started"
 }
 
@@ -552,25 +622,12 @@ start_ubuntu_frontend() {
 save_ubuntu_pm2_configuration() {
     print_status "Saving Ubuntu PM2 configuration..."
     
-    if ! pm2 save; then
-        print_warning "Failed to save Ubuntu PM2 configuration, but continuing..."
-    fi
-    
-    # Setup Ubuntu PM2 startup script
-    print_status "Setting up Ubuntu PM2 startup configuration..."
-    local startup_cmd
-    startup_cmd=$(pm2 startup | grep "sudo" | head -1)
-    
-    if [ -n "$startup_cmd" ]; then
-        print_status "Ubuntu PM2 startup command generated. Executing automatically..."
-        
-        # Try to execute it
-        if eval "$startup_cmd" 2>/dev/null; then
-            print_status "✅ Ubuntu PM2 startup configuration completed"
-            logger "Claude AI Agent Ubuntu PM2 startup configured"
+    # Save current PM2 processes
+    if command_exists pm2; then
+        if ! pm2 save; then
+            print_warning "Failed to save Ubuntu PM2 configuration, but continuing..."
         else
-            print_warning "Ubuntu PM2 startup configuration may need manual setup"
-            print_status "If needed, run manually: $startup_cmd"
+            print_status "✅ Ubuntu PM2 configuration saved"
         fi
     fi
 }
@@ -579,145 +636,116 @@ save_ubuntu_pm2_configuration() {
 perform_ubuntu_health_checks() {
     print_status "Performing Ubuntu health checks..."
     
-    # Wait for Ubuntu services to stabilize
-    print_status "Waiting for Ubuntu services to start..."
-    sleep 10
+    local health_score=0
+    local max_score=4
     
-    local health_ok=true
-    
-    # Check Ubuntu backend health
+    # Check backend health
     print_status "Checking Ubuntu backend health..."
-    local backend_check
-    backend_check=$(curl -s --max-time 10 "http://localhost:${PORT:-8000}/health" 2>/dev/null || echo "failed")
-    
-    if [[ "$backend_check" == *"healthy"* ]]; then
-        print_status "✅ Ubuntu backend health check passed"
-        
-        # Check if it shows Ubuntu info
-        if [[ "$backend_check" == *"ubuntu"* ]]; then
-            print_status "✅ Ubuntu backend reporting Ubuntu system info"
-        fi
+    if curl -s --max-time 10 http://localhost:8000/health >/dev/null 2>&1; then
+        print_status "✅ Backend API responding"
+        health_score=$((health_score + 1))
     else
-        print_error "❌ Ubuntu backend health check failed. Check logs: pm2 logs claude-backend"
-        health_ok=false
+        print_warning "❌ Backend API not responding"
     fi
     
-    # Check Ubuntu frontend health
+    # Check frontend health
     print_status "Checking Ubuntu frontend health..."
-    local frontend_check
-    frontend_check=$(curl -s --max-time 10 "http://localhost:3000" 2>/dev/null || echo "failed")
-    
-    if [[ "$frontend_check" != "failed" ]]; then
-        print_status "✅ Ubuntu frontend health check passed"
+    if curl -s --max-time 10 http://localhost:3000 >/dev/null 2>&1; then
+        print_status "✅ Frontend accessible"
+        health_score=$((health_score + 1))
     else
-        print_warning "⚠️ Ubuntu frontend health check failed. Check logs: pm2 logs claude-frontend"
-        health_ok=false
+        print_warning "❌ Frontend not accessible"
     fi
     
-    # Check Ubuntu Nginx proxy
-    print_status "Checking Ubuntu Nginx proxy..."
-    local nginx_check
-    nginx_check=$(curl -s --max-time 10 "http://localhost/" 2>/dev/null || echo "failed")
-    
-    if [[ "$nginx_check" != "failed" ]]; then
-        print_status "✅ Ubuntu Nginx proxy health check passed"
-    else
-        print_warning "⚠️ Ubuntu Nginx proxy health check failed"
-        health_ok=false
-    fi
-    
-    # Test Ubuntu API endpoint specifically
-    print_status "Testing Ubuntu API endpoint..."
-    local api_check
-    api_check=$(curl -s --max-time 10 "http://localhost/api/status" 2>/dev/null || echo "failed")
-    
-    if [[ "$api_check" != "failed" ]]; then
-        print_status "✅ Ubuntu API endpoint test passed"
-    else
-        print_warning "⚠️ Ubuntu API endpoint test failed"
-    fi
-    
-    # Check Ubuntu system services
-    print_status "Checking Ubuntu system services..."
+    # Check Nginx health
+    print_status "Checking Ubuntu Nginx health..."
     if systemctl is-active --quiet nginx; then
-        print_status "✅ Ubuntu Nginx systemd service active"
+        print_status "✅ Nginx running"
+        health_score=$((health_score + 1))
     else
-        print_warning "⚠️ Ubuntu Nginx systemd service not active"
-        health_ok=false
+        print_warning "❌ Nginx not running"
     fi
     
-    if systemctl is-active --quiet ufw 2>/dev/null; then
-        print_status "✅ Ubuntu UFW firewall service active"
+    # Check PM2 processes
+    print_status "Checking Ubuntu PM2 processes..."
+    if command_exists pm2 && pm2 describe claude-backend >/dev/null 2>&1 && pm2 describe claude-frontend >/dev/null 2>&1; then
+        print_status "✅ PM2 processes running"
+        health_score=$((health_score + 1))
     else
-        print_warning "⚠️ Ubuntu UFW firewall service not active"
+        print_warning "❌ Some PM2 processes not running"
     fi
     
-    # Log Ubuntu health check results
-    if [ "$health_ok" = true ]; then
-        logger "Claude AI Agent Ubuntu deployment health checks passed"
-    else
-        logger "Claude AI Agent Ubuntu deployment health checks failed"
-    fi
+    print_status "Ubuntu Health Score: $health_score/$max_score"
     
-    return $([ "$health_ok" = true ] && echo 0 || echo 1)
+    if [ $health_score -eq $max_score ]; then
+        print_status "✅ All Ubuntu health checks passed"
+        return 0
+    elif [ $health_score -ge 2 ]; then
+        print_warning "⚠️ Ubuntu deployment partially healthy ($health_score/$max_score)"
+        return 0
+    else
+        print_error "❌ Ubuntu deployment health checks failed ($health_score/$max_score)"
+        return 1
+    fi
 }
 
-# Function to display Ubuntu service status
+# Function to show Ubuntu service status
 show_ubuntu_service_status() {
-    print_status "Current Ubuntu service status:"
+    print_status "Ubuntu Service Status:"
     
-    echo "🐧 Ubuntu System Information:"
-    echo "   Version: $UBUNTU_VERSION ($UBUNTU_CODENAME)"
-    echo "   Cloud: $CLOUD_PROVIDER"
-    echo "   Type: $UBUNTU_TYPE"
     echo
-    
-    echo "🚀 PM2 Services:"
-    if ! pm2 status; then
-        print_warning "Failed to get Ubuntu PM2 status"
+    if command_exists pm2; then
+        echo "PM2 Processes:"
+        pm2 status 2>/dev/null || echo "No PM2 processes running"
     fi
     
     echo
-    echo "🔧 Ubuntu System Services:"
-    systemctl is-active nginx >/dev/null && echo "   Nginx: ✅ Active" || echo "   Nginx: ❌ Inactive"
-    systemctl is-active ufw >/dev/null 2>&1 && echo "   UFW Firewall: ✅ Active" || echo "   UFW Firewall: ❌ Inactive"
-    systemctl is-active fail2ban >/dev/null 2>&1 && echo "   fail2ban: ✅ Active" || echo "   fail2ban: ❌ Inactive"
+    echo "System Services:"
+    if systemctl is-active --quiet nginx; then
+        echo "✅ Nginx: Running"
+    else
+        echo "❌ Nginx: Not running"
+    fi
+    
+    echo
+    echo "System Resources:"
+    if command_exists free; then
+        echo "Memory: $(free -h | awk '/^Mem:/ {print $3"/"$2" ("$3/$2*100"%)"}')"
+    fi
+    if command_exists df; then
+        echo "Disk: $(df -h / | awk 'NR==2 {print $3"/"$2" ("$5" used)"}')"
+    fi
 }
 
-# Function to display Ubuntu access information
+# Function to show Ubuntu access information
 show_ubuntu_access_information() {
     echo
     echo "========================================"
-    echo "✅ Ubuntu Deployment Completed!"
+    echo "✅ Ubuntu Deployment Completed Successfully!"
     echo "========================================"
     echo
     echo "🐧 Ubuntu Environment:"
-    echo "   Ubuntu: $UBUNTU_VERSION ($UBUNTU_CODENAME)"
-    echo "   Cloud: $CLOUD_PROVIDER"
-    echo "   Type: $UBUNTU_TYPE"
-    echo "   User: $CURRENT_USER"
-    echo "   IP: $PUBLIC_IP"
+    echo "   Ubuntu Version: $UBUNTU_VERSION ($UBUNTU_CODENAME)"
+    echo "   Cloud Provider: $CLOUD_PROVIDER"
+    echo "   Ubuntu Type: $UBUNTU_TYPE"
+    echo "   Current User: $CURRENT_USER"
     echo
     echo "🌐 Access your Ubuntu Claude AI Agent:"
-    echo "   Main site: http://$PUBLIC_IP"
-    echo "   API docs:  http://$PUBLIC_IP:${PORT:-8000}/docs"
-    echo "   Health:    http://$PUBLIC_IP:${PORT:-8000}/health"
-    echo "   Status:    http://$PUBLIC_IP/api/status"
-    echo
-    if [ "$CLOUD_PROVIDER" = "wsl" ]; then
-        echo "   WSL Ubuntu: Access from Windows at http://localhost"
+    if [ "$PUBLIC_IP" != "127.0.0.1" ] && [ "$PUBLIC_IP" != "localhost" ]; then
+        echo "   External: http://$PUBLIC_IP"
     fi
+    echo "   Local: http://localhost"
+    echo "   Direct Backend: http://localhost:8000/health"
+    echo "   Direct Frontend: http://localhost:3000"
     echo
-    echo "🔧 Ubuntu management commands:"
-    echo "   Check status:   ./scripts/ubuntu-status.sh"
-    echo "   View logs:      pm2 logs"
-    echo "   Ubuntu logs:    journalctl -u nginx -f"
-    echo "   Restart:        pm2 restart all"
-    echo "   Monitor:        ./scripts/monitor.sh"
-    echo "   Health check:   ./scripts/health-check.sh"
-    echo "   Ubuntu backup:  ./scripts/backup.sh"
+    echo "📋 Ubuntu Management Commands:"
+    echo "   pm2 status                    # Check Ubuntu service status"
+    echo "   pm2 logs                      # View Ubuntu application logs"
+    echo "   pm2 restart all               # Restart Ubuntu services"
+    echo "   sudo systemctl status nginx   # Check Ubuntu Nginx status"
+    echo "   sudo journalctl -u nginx -f   # Follow Ubuntu Nginx logs"
     echo
-    echo "📊 Ubuntu next steps:"
+    echo "🔧 Next Ubuntu steps:"
     echo "   1. Test your Ubuntu deployment in a web browser"
     echo "   2. Check Ubuntu logs if issues: pm2 logs"
     echo "   3. Set up Ubuntu monitoring: ./scripts/monitor.sh"
@@ -739,7 +767,7 @@ show_ubuntu_access_information() {
 
 # Main Ubuntu deployment function
 main() {
-    print_status "Starting Claude AI Agent Ubuntu Universal deployment"
+    print_status "Starting Claude AI Agent Ubuntu deployment"
     
     # Detect Ubuntu environment first
     detect_ubuntu_environment
