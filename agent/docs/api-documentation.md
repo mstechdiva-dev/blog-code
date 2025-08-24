@@ -1,727 +1,507 @@
-# Universal API Documentation
+# Installation Guide
 
-Complete API reference for Claude AI Agent universal deployment system with comprehensive monitoring, health scoring, and platform-adaptive features.
+Complete step-by-step installation guide for deploying Claude AI Agent on AWS Lightsail.
 
-## Base URL
+## Prerequisites
 
-The API automatically adapts to your deployment environment:
+Before starting, ensure you have:
+- AWS Account (free tier eligible)
+- Anthropic API Key ([get one here](https://console.anthropic.com/))
+- Basic Linux/command line familiarity
+- Credit card for AWS verification
+
+## Cost Estimate
+
+- **AWS Lightsail Instance**: $10-15/month (2GB RAM, 1 vCPU, 60GB SSD)
+- **Anthropic API Usage**: $5-20/month (pay-per-token based on usage)
+- **Total Monthly Cost**: ~$15-35/month
+
+## Step 1: AWS Account Setup
+
+### 1.1 Create AWS Account
+1. Go to [https://aws.amazon.com/](https://aws.amazon.com/)
+2. Click "Create an AWS Account"
+3. Follow the registration process requiring:
+   - Email address
+   - Phone number
+   - Credit card (for verification)
+4. Complete account verification steps
+5. Choose Basic/Free support plan
+
+### 1.2 Access AWS Console
+1. Sign in to AWS Management Console
+2. Navigate to services menu
+3. Search for "Lightsail" in services
+
+## Step 2: Create Lightsail Instance
+
+### 2.1 Instance Configuration
+1. In AWS Console, navigate to Amazon Lightsail
+2. Click "Create instance"
+3. Select platform: **Linux/Unix**
+4. Choose blueprint: **OS Only**
+5. Select operating system: **Ubuntu 22.04 LTS**
+
+### 2.2 Choose Instance Plan
+
+**Recommended for Production:**
+- $10 USD/month
+- 2 GB RAM
+- 1 vCPU
+- 60 GB SSD
+- 3 TB transfer
+
+**For Development/Testing:**
+- $5 USD/month
+- 1 GB RAM
+- 1 vCPU
+- 40 GB SSD
+- 2 TB transfer
+
+### 2.3 Instance Settings
+1. Instance name: `claude-ai-agent`
+2. Availability Zone: (keep default)
+3. Key pair: Download default key or create new
+4. Click "Create instance"
+5. Wait for instance to be running (2-3 minutes)
+
+## Step 3: Configure Networking
+
+### 3.1 Create Static IP
+1. Go to "Networking" tab in Lightsail console
+2. Click "Create static IP"
+3. Select your instance
+4. Name: `claude-agent-static-ip`
+5. Click "Create"
+
+### 3.2 Configure Firewall Rules
+Add these firewall rules in your instance dashboard:
 
 ```
-# Direct backend access
-http://your-server-ip:8000
+Application: Custom
+Protocol: TCP
+Port range: 8000
+Source: Anywhere (0.0.0.0/0)
+Description: FastAPI Backend
 
-# Through Nginx proxy (recommended)
-http://your-server-ip/api
+Application: Custom
+Protocol: TCP
+Port range: 3000
+Source: Anywhere (0.0.0.0/0)
+Description: React Development
 
-# Local development
-http://localhost:8000
+Application: HTTP
+Protocol: TCP
+Port range: 80
+Source: Anywhere (0.0.0.0/0)
+Description: Web Server
+
+Application: HTTPS
+Protocol: TCP
+Port range: 443
+Source: Anywhere (0.0.0.0/0)
+Description: Secure Web Server
 ```
 
-## Universal Response Format
+## Step 4: Connect to Your Instance
 
-All API responses follow this adaptive format based on your environment:
+### 4.1 Browser SSH (Recommended)
+1. Go to your Lightsail instance dashboard
+2. Click "Connect using SSH"
+3. Browser-based terminal opens
+4. You should see: `ubuntu@ip-172-26-x-x:~$`
 
-```json
-{
-  "success": true|false,
-  "response": "response_content",
-  "timestamp": "2024-01-08T12:00:00Z",
-  "request_id": 123,
-  "platform_info": {
-    "cloud_provider": "aws|gcp|azure|local|wsl",
-    "environment": "production|staging|development",
-    "deployment_type": "universal"
-  },
-  "session_stats": {
-    "total_requests": 10,
-    "total_tokens": 1500,
-    "session_duration": "0:15:30",
-    "health_score": 95.2
-  }
-}
-```
-
-## Health and Monitoring Endpoints
-
-### **1. Comprehensive Health Check**
-
-Returns detailed health information with scoring algorithm used by monitoring scripts.
-
-**Endpoint:** `GET /health`
-
-**Response:**
-```json
-{
-  "status": "healthy|degraded|critical",
-  "health_score": 95.2,
-  "health_grade": "excellent|good|needs_attention|critical",
-  "system_info": {
-    "cloud_provider": "aws",
-    "os_type": "debian", 
-    "package_manager": "apt",
-    "user_type": "ubuntu",
-    "service_manager": "systemctl"
-  },
-  "resources": {
-    "cpu_percent": 15.2,
-    "memory_percent": 45.8,
-    "disk_percent": 23.1,
-    "load_average": [0.5, 0.3, 0.2],
-    "uptime": "2 days, 14:30:25"
-  },
-  "services": {
-    "backend_api": {
-      "status": "online",
-      "response_time": 0.45,
-      "pid": 1234,
-      "memory_mb": 120,
-      "cpu_percent": 5.2
-    },
-    "frontend": {
-      "status": "online", 
-      "port": 3000,
-      "build_exists": true
-    },
-    "nginx": {
-      "status": "active",
-      "config_valid": true,
-      "connections": 15
-    },
-    "database": {
-      "status": "healthy",
-      "integrity": "ok",
-      "size_mb": 15.7,
-      "tables": 4,
-      "last_backup": "2024-01-08T03:00:00Z"
-    }
-  },
-  "network": {
-    "external_connectivity": true,
-    "anthropic_api_reachable": true,
-    "ports": {
-      "80": "listening",
-      "443": "listening", 
-      "8000": "listening",
-      "3000": "listening"
-    }
-  },
-  "security": {
-    "firewall_active": true,
-    "ssl_configured": false,
-    "env_permissions": "600",
-    "api_key_configured": true
-  },
-  "recommendations": [
-    "System is operating optimally",
-    "Consider enabling SSL for production"
-  ],
-  "timestamp": "2024-01-08T12:00:00Z"
-}
-```
-
-### **2. Real-Time System Metrics**
-
-Provides detailed metrics used by the monitoring dashboard.
-
-**Endpoint:** `GET /metrics`
-
-**Response:**
-```json
-{
-  "platform": {
-    "cloud_provider": "aws",
-    "instance_id": "i-1234567890abcdef0",
-    "region": "us-east-1",
-    "instance_type": "t3.small",
-    "public_ip": "1.2.3.4"
-  },
-  "system": {
-    "cpu": {
-      "usage_percent": 15.2,
-      "load_1min": 0.5,
-      "load_5min": 0.3,
-      "load_15min": 0.2,
-      "cores": 2
-    },
-    "memory": {
-      "total_gb": 2.0,
-      "used_gb": 0.9,
-      "usage_percent": 45.8,
-      "available_gb": 1.1
-    },
-    "disk": {
-      "total_gb": 60,
-      "used_gb": 14,
-      "usage_percent": 23.1,
-      "available_gb": 46
-    },
-    "network": {
-      "bytes_sent": 1024000,
-      "bytes_received": 2048000,
-      "connections_active": 15
-    }
-  },
-  "application": {
-    "processes": {
-      "claude-backend": {
-        "status": "online",
-        "pid": 1234,
-        "cpu_percent": 5.2,
-        "memory_mb": 120,
-        "uptime": "2d 14h 30m",
-        "restarts": 0
-      },
-      "claude-frontend": {
-        "status": "online",
-        "pid": 5678,
-        "cpu_percent": 2.1,
-        "memory_mb": 80,
-        "uptime": "2d 14h 30m",
-        "restarts": 0
-      }
-    },
-    "performance": {
-      "requests_per_minute": 12.5,
-      "avg_response_time": 1.15,
-      "error_rate": 0.0,
-      "total_requests": 1450,
-      "total_errors": 0
-    }
-  },
-  "database": {
-    "size_mb": 15.7,
-    "tables": {
-      "conversation_logs": 1250,
-      "user_sessions": 89,
-      "system_metrics": 2880,
-      "api_usage": 30
-    },
-    "performance": {
-      "query_time_avg": 0.05,
-      "last_backup": "2024-01-08T03:00:00Z",
-      "integrity_status": "ok"
-    }
-  },
-  "api_usage": {
-    "today": {
-      "requests": 142,
-      "tokens": 15420,
-      "estimated_cost_usd": 2.31
-    },
-    "this_month": {
-      "requests": 4250,
-      "tokens": 462000,
-      "estimated_cost_usd": 69.30
-    }
-  },
-  "timestamp": "2024-01-08T12:00:00Z"
-}
-```
-
-### **3. Platform Information**
-
-Returns environment detection results used by universal scripts.
-
-**Endpoint:** `GET /platform`
-
-**Response:**
-```json
-{
-  "detection": {
-    "cloud_provider": "aws",
-    "os_type": "debian",
-    "package_manager": "apt",
-    "service_manager": "systemctl",
-    "user_type": "ubuntu",
-    "architecture": "x86_64"
-  },
-  "environment": {
-    "project_root": "/home/ubuntu/claude-ai-agent",
-    "public_ip": "1.2.3.4",
-    "instance_id": "i-1234567890abcdef0",
-    "deployment_type": "universal"
-  },
-  "capabilities": {
-    "auto_recovery": true,
-    "health_monitoring": true,
-    "backup_system": true,
-    "universal_scripts": true
-  },
-  "versions": {
-    "system_version": "1.0.0",
-    "node_version": "v18.17.0",
-    "python_version": "3.10.12",
-    "nginx_version": "1.22.1"
-  }
-}
-```
-
-## Chat and Conversation Endpoints
-
-### **4. Universal Chat Interface**
-
-Adaptive chat endpoint that works across all platforms.
-
-**Endpoint:** `POST /chat`
-
-**Request Body:**
-```json
-{
-  "message": "Your message to Claude",
-  "session_id": "optional-session-id",
-  "options": {
-    "max_tokens": 1000,
-    "model": "claude-3-sonnet-20240229"
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "response": "Claude's response to your message",
-  "metadata": {
-    "tokens_used": 245,
-    "processing_time": 1.23,
-    "model": "claude-3-sonnet-20240229",
-    "cost_estimate": 0.00368
-  },
-  "session_info": {
-    "session_id": "user-123-session",
-    "message_count": 15,
-    "total_tokens": 3420,
-    "session_duration": "0:25:15",
-    "created_at": "2024-01-08T11:35:00Z"
-  },
-  "system_status": {
-    "health_score": 95.2,
-    "response_quality": "optimal",
-    "resource_usage": "normal"
-  },
-  "timestamp": "2024-01-08T12:00:00Z",
-  "request_id": 15
-}
-```
-
-### **5. Session Management**
-
-Enhanced session management with monitoring integration.
-
-**Get Session Details:**
-**Endpoint:** `GET /sessions/{session_id}`
-
-**Response:**
-```json
-{
-  "success": true,
-  "session": {
-    "session_id": "user-123-session",
-    "created_at": "2024-01-08T11:35:00Z",
-    "last_activity": "2024-01-08T12:00:00Z",
-    "status": "active",
-    "platform_info": {
-      "user_agent": "Mozilla/5.0...",
-      "ip_address": "192.168.1.100",
-      "location": "external"
-    }
-  },
-  "statistics": {
-    "total_messages": 30,
-    "total_tokens": 4520,
-    "total_cost": 0.0678,
-    "avg_response_time": 1.15,
-    "session_duration": "0:25:15"
-  },
-  "recent_activity": [
-    {
-      "timestamp": "2024-01-08T12:00:00Z",
-      "type": "message",
-      "tokens": 45,
-      "processing_time": 0.85
-    }
-  ],
-  "conversation_summary": {
-    "topics": ["python", "deployment", "monitoring"],
-    "message_count": 30,
-    "quality_score": 4.8
-  }
-}
-```
-
-## Monitoring and Administration
-
-### **6. System Status Dashboard**
-
-Comprehensive status endpoint for admin dashboards.
-
-**Endpoint:** `GET /admin/status`
-
-**Response:**
-```json
-{
-  "system": {
-    "health_score": 95.2,
-    "status": "excellent",
-    "uptime": "2 days, 14:30:25",
-    "deployment_info": {
-      "cloud_provider": "aws",
-      "environment": "production",
-      "version": "1.0.0",
-      "deployed_at": "2024-01-06T10:15:00Z"
-    }
-  },
-  "services": {
-    "backend": {
-      "status": "healthy",
-      "uptime": "2d 14h 30m",
-      "memory_usage": "120MB",
-      "cpu_usage": "5.2%",
-      "response_time": "0.45s"
-    },
-    "frontend": {
-      "status": "healthy", 
-      "build_date": "2024-01-06T10:20:00Z",
-      "serving": "production_build"
-    },
-    "nginx": {
-      "status": "active",
-      "connections": 15,
-      "requests_per_minute": 12.5
-    },
-    "database": {
-      "status": "healthy",
-      "size": "15.7MB",
-      "integrity": "ok",
-      "last_backup": "2024-01-08T03:00:00Z"
-    }
-  },
-  "usage": {
-    "active_sessions": 5,
-    "total_conversations": 1250,
-    "today_requests": 142,
-    "today_tokens": 15420,
-    "estimated_monthly_cost": 69.30
-  },
-  "alerts": [],
-  "recommendations": [
-    "System operating optimally",
-    "Consider SSL setup for production"
-  ]
-}
-```
-
-### **7. Real-Time Monitoring Stream**
-
-WebSocket endpoint for real-time monitoring (if available).
-
-**Endpoint:** `WS /monitor`
-
-**Message Format:**
-```json
-{
-  "type": "system_update",
-  "timestamp": "2024-01-08T12:00:00Z",
-  "data": {
-    "cpu_percent": 15.2,
-    "memory_percent": 45.8,
-    "health_score": 95.2,
-    "active_requests": 3,
-    "response_time": 0.45
-  }
-}
-```
-
-## Backup and Recovery Endpoints
-
-### **8. Backup Management**
-
-Control backup operations through API.
-
-**Create Backup:**
-**Endpoint:** `POST /admin/backup`
-
-**Response:**
-```json
-{
-  "success": true,
-  "backup_info": {
-    "backup_id": "backup_20240108_120000",
-    "created_at": "2024-01-08T12:00:00Z",
-    "files": {
-      "database": "database_20240108_120000.db",
-      "configuration": "config_20240108_120000.tar.gz",
-      "logs": "logs_20240108_120000.tar.gz"
-    },
-    "total_size": "45.2MB",
-    "integrity_verified": true
-  },
-  "retention": {
-    "days": 30,
-    "total_backups": 15,
-    "oldest_backup": "2024-01-01T03:00:00Z"
-  }
-}
-```
-
-**List Backups:**
-**Endpoint:** `GET /admin/backups`
-
-**Response:**
-```json
-{
-  "backups": [
-    {
-      "backup_id": "backup_20240108_120000",
-      "created_at": "2024-01-08T12:00:00Z",
-      "size": "45.2MB",
-      "type": "automatic",
-      "integrity": "verified"
-    }
-  ],
-  "retention_policy": {
-    "days": 30,
-    "auto_cleanup": true
-  },
-  "storage_info": {
-    "total_used": "680MB",
-    "available": "59.3GB"
-  }
-}
-```
-
-## Configuration Management
-
-### **9. Environment Configuration**
-
-Manage system configuration (sensitive data excluded).
-
-**Endpoint:** `GET /admin/config`
-
-**Response:**
-```json
-{
-  "platform": {
-    "cloud_provider": "aws",
-    "deployment_type": "universal",
-    "environment": "production"
-  },
-  "services": {
-    "backend_port": 8000,
-    "frontend_port": 3000,
-    "nginx_enabled": true,
-    "ssl_enabled": false
-  },
-  "features": {
-    "health_monitoring": true,
-    "auto_backup": true,
-    "rate_limiting": true,
-    "metrics_collection": true
-  },
-  "performance": {
-    "max_tokens": 1000,
-    "rate_limit_requests": 100,
-    "rate_limit_window": 3600
-  },
-  "security": {
-    "cors_enabled": true,
-    "firewall_configured": true,
-    "api_key_configured": true
-  }
-}
-```
-
-## Error Handling and Codes
-
-### **Universal Error Response Format**
-```json
-{
-  "success": false,
-  "error": {
-    "type": "rate_limit|connection_error|auth_error|system_error",
-    "message": "Human-readable error description",
-    "code": "ERROR_CODE",
-    "details": {
-      "platform": "aws",
-      "component": "backend|frontend|database|nginx",
-      "resolution": "Suggested resolution steps"
-    }
-  },
-  "system_info": {
-    "health_score": 85.0,
-    "affected_services": ["backend"],
-    "auto_recovery": "attempted|successful|failed"
-  },
-  "timestamp": "2024-01-08T12:00:00Z"
-}
-```
-
-### **HTTP Status Codes**
-- `200` - Success
-- `400` - Bad Request (validation error)
-- `401` - Unauthorized (future authentication)
-- `429` - Too Many Requests (rate limited)
-- `500` - Internal Server Error
-- `503` - Service Unavailable (maintenance/overload)
-
-### **Custom Error Types**
-- `system_healthy` - All systems operational
-- `degraded_performance` - Reduced performance
-- `service_unavailable` - Specific service down
-- `maintenance_mode` - System in maintenance
-- `configuration_error` - Configuration problem
-- `platform_error` - Platform-specific issue
-
-## SDK and Integration Examples
-
-### **Universal Python Client**
-```python
-import requests
-import json
-from typing import Dict, Optional
-
-class UniversalClaudeClient:
-    def __init__(self, base_url: str, timeout: int = 30):
-        self.base_url = base_url.rstrip('/')
-        self.timeout = timeout
-        self.session = requests.Session()
-        
-    def get_platform_info(self) -> Dict:
-        """Get platform detection and capabilities."""
-        response = self.session.get(f"{self.base_url}/platform")
-        return response.json()
-    
-    def health_check(self) -> Dict:
-        """Comprehensive health check with scoring."""
-        response = self.session.get(f"{self.base_url}/health")
-        return response.json()
-    
-    def chat(self, message: str, session_id: Optional[str] = None) -> Dict:
-        """Send message with full session tracking."""
-        payload = {"message": message}
-        if session_id:
-            payload["session_id"] = session_id
-            
-        response = self.session.post(
-            f"{self.base_url}/chat",
-            json=payload,
-            timeout=self.timeout
-        )
-        return response.json()
-    
-    def get_metrics(self) -> Dict:
-        """Get comprehensive system metrics."""
-        response = self.session.get(f"{self.base_url}/metrics")
-        return response.json()
-    
-    def create_backup(self) -> Dict:
-        """Trigger system backup."""
-        response = self.session.post(f"{self.base_url}/admin/backup")
-        return response.json()
-
-# Usage example
-client = UniversalClaudeClient("http://your-server-ip:8000")
-
-# Check platform capabilities
-platform = client.get_platform_info()
-print(f"Running on {platform['detection']['cloud_provider']}")
-
-# Monitor health
-health = client.health_check()
-print(f"Health Score: {health['health_score']}%")
-
-# Chat with monitoring
-result = client.chat("Hello Claude!", "my-session")
-print(f"Response: {result['response']}")
-print(f"Health: {result['system_status']['health_score']}%")
-```
-
-### **JavaScript Universal Client**
-```javascript
-class UniversalClaudeClient {
-    constructor(baseUrl, options = {}) {
-        this.baseUrl = baseUrl.replace(/\/+$/, '');
-        this.timeout = options.timeout || 30000;
-    }
-    
-    async getPlatformInfo() {
-        const response = await fetch(`${this.baseUrl}/platform`);
-        return await response.json();
-    }
-    
-    async healthCheck() {
-        const response = await fetch(`${this.baseUrl}/health`);
-        return await response.json();
-    }
-    
-    async chat(message, sessionId = null) {
-        const payload = { message };
-        if (sessionId) payload.session_id = sessionId;
-        
-        const response = await fetch(`${this.baseUrl}/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        
-        return await response.json();
-    }
-    
-    async getMetrics() {
-        const response = await fetch(`${this.baseUrl}/metrics`);
-        return await response.json();
-    }
-    
-    async monitorHealth(callback, interval = 30000) {
-        const monitor = async () => {
-            try {
-                const health = await this.healthCheck();
-                callback(health);
-            } catch (error) {
-                callback({ error: error.message });
-            }
-        };
-        
-        monitor(); // Initial check
-        return setInterval(monitor, interval);
-    }
-}
-
-// Usage
-const client = new UniversalClaudeClient('http://your-server-ip:8000');
-
-// Platform detection
-client.getPlatformInfo().then(platform => {
-    console.log(`Platform: ${platform.detection.cloud_provider}`);
-});
-
-// Continuous health monitoring
-client.monitorHealth(health => {
-    if (health.error) {
-        console.error('Health check failed:', health.error);
-    } else {
-        console.log(`Health: ${health.health_score}% - ${health.status}`);
-    }
-}, 30000);
-```
-
-## Testing and Validation
-
-### **API Health Validation**
+### 4.2 SSH Client (Alternative)
 ```bash
-# Test platform detection
-curl -s http://your-server-ip:8000/platform | jq '.detection'
-
-# Comprehensive health check
-curl -s http://your-server-ip:8000/health | jq '.health_score'
-
-# Test chat functionality
-curl -X POST http://your-server-ip:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Test universal deployment"}' | jq '.system_status'
-
-# Monitor real-time metrics
-curl -s http://your-server-ip:8000/metrics | jq '.system.cpu'
+# Download the default key from Lightsail
+# On your local machine:
+chmod 400 LightsailDefaultKey-us-east-1.pem
+ssh -i LightsailDefaultKey-us-east-1.pem ubuntu@YOUR_PUBLIC_IP
 ```
 
-This universal API documentation now accurately reflects the sophisticated monitoring, platform detection, and management capabilities that are actually implemented in the scripts, rather than describing a basic system.
+## Step 5: System Setup
+
+### 5.1 Update System
+```bash
+# Update package lists
+sudo apt-get update
+
+# Upgrade existing packages
+sudo apt-get upgrade -y
+
+# Install essential packages
+sudo apt-get install -y \
+    curl \
+    wget \
+    git \
+    htop \
+    unzip \
+    zip \
+    tree \
+    nano \
+    vim \
+    software-properties-common \
+    apt-transport-https \
+    ca-certificates \
+    gnupg \
+    lsb-release
+```
+
+### 5.2 Install Node.js
+```bash
+# Add NodeSource repository
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+
+# Install Node.js
+sudo apt-get install -y nodejs
+
+# Verify installation
+node --version  # Should show v18.x.x
+npm --version   # Should show 9.x.x or higher
+```
+
+### 5.3 Install Python Dependencies
+```bash
+# Install Python and tools
+sudo apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
+    python3-dev \
+    build-essential
+
+# Verify Python installation
+python3 --version  # Should show Python 3.10.x
+pip3 --version     # Should show pip 22.x.x
+```
+
+### 5.4 Install Additional Tools
+```bash
+# Install Nginx
+sudo apt-get install -y nginx
+
+# Install PM2 globally for process management
+sudo npm install -g pm2
+
+# Install other useful tools
+sudo apt-get install -y \
+    sqlite3 \
+    jq \
+    netcat \
+    telnet
+
+# Verify installations
+nginx -v        # Should show nginx version
+pm2 --version   # Should show PM2 version
+sqlite3 --version  # Should show SQLite version
+```
+
+## Step 6: Create Project Structure
+
+### 6.1 Create Directories
+```bash
+# Navigate to home directory
+cd /home/ubuntu
+
+# Create main project directory
+mkdir claude-ai-agent
+cd claude-ai-agent
+
+# Create subdirectories
+mkdir -p backend frontend scripts logs data config backups docs
+
+# Create essential files
+touch README.md .gitignore .env
+
+# Verify structure
+tree -L 2
+```
+
+### 6.2 Set Permissions
+```bash
+# Ensure ubuntu user owns everything
+sudo chown -R ubuntu:ubuntu /home/ubuntu/claude-ai-agent
+
+# Set directory permissions
+find /home/ubuntu/claude-ai-agent -type d -exec chmod 755 {} \;
+
+# Set file permissions
+find /home/ubuntu/claude-ai-agent -type f -exec chmod 644 {} \;
+
+# Make scripts directory executable
+chmod 755 /home/ubuntu/claude-ai-agent/scripts
+```
+
+## Step 7: Environment Configuration
+
+### 7.1 Create Environment File
+```bash
+cd /home/ubuntu/claude-ai-agent
+
+# Get your public IP
+PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+
+# Create .env file
+cat > .env << EOF
+# =====================================
+# Claude AI Agent Configuration
+# =====================================
+
+# Anthropic API Configuration
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+MODEL_NAME=claude-3-sonnet-20240229
+MAX_TOKENS=1000
+
+# Server Configuration
+HOST=0.0.0.0
+PORT=8000
+DEBUG=False
+ENVIRONMENT=production
+
+# Database Configuration
+DATABASE_URL=sqlite:///./data/agent_database.db
+
+# Security Configuration
+SECRET_KEY=$(openssl rand -hex 32)
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+
+# AWS Configuration
+AWS_REGION=us-east-1
+STATIC_IP=$PUBLIC_IP
+INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+
+# CORS Configuration
+ALLOWED_ORIGINS=*
+CORS_ENABLED=True
+
+# Rate Limiting
+RATE_LIMIT_REQUESTS=100
+RATE_LIMIT_WINDOW=3600
+
+# Logging Configuration
+LOG_LEVEL=INFO
+LOG_FILE=/home/ubuntu/claude-ai-agent/logs/app.log
+
+# Monitoring Configuration
+HEALTH_CHECK_INTERVAL=300
+METRICS_COLLECTION=True
+
+# Backup Configuration
+BACKUP_RETENTION_DAYS=30
+AUTO_BACKUP=True
+EOF
+
+# Secure the environment file
+chmod 600 .env
+```
+
+### 7.2 Configure API Key
+```bash
+# Edit the environment file to add your Anthropic API key
+nano /home/ubuntu/claude-ai-agent/.env
+
+# Replace 'your_anthropic_api_key_here' with your actual key:
+# ANTHROPIC_API_KEY=sk-ant-your-actual-key-here
+
+# Save and exit (Ctrl+X, Y, Enter)
+```
+
+## Step 8: Backend Setup
+
+### 8.1 Create Virtual Environment
+```bash
+cd /home/ubuntu/claude-ai-agent/backend
+
+# Create virtual environment
+python3 -m venv venv
+
+# Activate virtual environment
+source venv/bin/activate
+
+# Upgrade pip
+pip install --upgrade pip
+```
+
+### 8.2 Install Python Packages
+```bash
+# Install core packages
+pip install \
+    anthropic==0.7.8 \
+    fastapi==0.104.1 \
+    uvicorn[standard]==0.24.0 \
+    python-dotenv==1.0.0 \
+    pydantic==2.5.0 \
+    sqlalchemy==2.0.23 \
+    aiofiles==23.2.1 \
+    python-multipart==0.0.6 \
+    requests==2.31.0 \
+    psutil==5.9.6
+
+# Install additional packages
+pip install \
+    python-jose[cryptography]==3.3.0 \
+    passlib[bcrypt]==1.7.4 \
+    email-validator==2.1.0 \
+    jinja2==3.1.2
+
+# Create requirements.txt
+pip freeze > requirements.txt
+```
+
+## Step 9: Database Initialization
+
+### 9.1 Initialize Database
+```bash
+# Ensure data directory exists
+mkdir -p /home/ubuntu/claude-ai-agent/data
+
+# The database will be created automatically when the application starts
+# SQLite database will be created at: ./data/agent_database.db
+```
+
+## Step 10: Frontend Setup
+
+### 10.1 Initialize React Application
+```bash
+cd /home/ubuntu/claude-ai-agent/frontend
+
+# Create React TypeScript application
+npx create-react-app . --template typescript
+
+# Install additional dependencies
+npm install @mui/material @emotion/react @emotion/styled
+npm install @mui/icons-material
+npm install axios
+```
+
+## Step 11: Nginx Configuration
+
+### 11.1 Configure Nginx
+```bash
+# Create Nginx configuration
+sudo nano /etc/nginx/sites-available/claude-agent
+
+# Add this configuration:
+server {
+    listen 80;
+    server_name YOUR_DOMAIN_OR_IP;
+
+    # Frontend
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Backend API
+    location /api {
+        proxy_pass http://localhost:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# Enable the site
+sudo ln -s /etc/nginx/sites-available/claude-agent /etc/nginx/sites-enabled/
+
+# Test configuration
+sudo nginx -t
+
+# Restart Nginx
+sudo systemctl restart nginx
+```
+
+## Step 12: Process Management
+
+### 12.1 Configure PM2
+```bash
+# Start backend with PM2
+cd /home/ubuntu/claude-ai-agent/backend
+source venv/bin/activate
+pm2 start "uvicorn main:app --host 0.0.0.0 --port 8000" --name claude-backend
+
+# Build and start frontend
+cd /home/ubuntu/claude-ai-agent/frontend
+npm run build
+pm2 start "npx serve -s build -l 3000" --name claude-frontend
+
+# Save PM2 configuration
+pm2 save
+pm2 startup
+
+# Follow the instructions provided by pm2 startup command
+```
+
+## Step 13: Verification
+
+### 13.1 Check Services
+```bash
+# Check PM2 processes
+pm2 status
+
+# Check Nginx status
+sudo systemctl status nginx
+
+# Check if ports are listening
+netstat -tlnp | grep :8000  # Backend
+netstat -tlnp | grep :3000  # Frontend
+netstat -tlnp | grep :80    # Nginx
+```
+
+### 13.2 Test Installation
+```bash
+# Test backend API
+curl http://localhost:8000/health
+
+# Test frontend (in browser)
+# Visit: http://YOUR_PUBLIC_IP
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**Port Already in Use:**
+```bash
+sudo lsof -i :8000
+sudo kill -9 PID_NUMBER
+```
+
+**Permission Issues:**
+```bash
+sudo chown -R ubuntu:ubuntu /home/ubuntu/claude-ai-agent
+```
+
+**Service Not Starting:**
+```bash
+pm2 logs claude-backend
+pm2 logs claude-frontend
+```
+
+**Nginx Configuration Errors:**
+```bash
+sudo nginx -t
+sudo systemctl status nginx
+```
+
+## Next Steps
+
+After successful installation:
+1. Test your Claude AI agent in the browser
+2. Configure SSL certificates for production use
+3. Set up monitoring and backup procedures
+4. Review security settings
+5. Configure domain name (optional)
+
+See [Configuration Guide](configuration-guide.md) for detailed configuration options.
