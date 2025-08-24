@@ -145,17 +145,17 @@ npm run build
 ### 3. Database Connection Issues
 
 **Symptoms:**
-- Error messages about database connection
-- Cannot save conversations
-- Metrics not updating
+- "Database connection failed" errors
+- Unable to save conversations
+- Data not persisting
 
 **Diagnosis:**
 ```bash
 # Check if database file exists
 ls -la /home/ubuntu/claude-ai-agent/data/agent_database.db
 
-# Check database file permissions
-ls -la /home/ubuntu/claude-ai-agent/data/
+# Check database permissions
+stat /home/ubuntu/claude-ai-agent/data/agent_database.db
 
 # Test database connectivity
 sqlite3 /home/ubuntu/claude-ai-agent/data/agent_database.db ".tables"
@@ -165,12 +165,14 @@ sqlite3 /home/ubuntu/claude-ai-agent/data/agent_database.db ".tables"
 
 **A. Fix Database Permissions:**
 ```bash
-# Ensure proper ownership
-sudo chown -R ubuntu:ubuntu /home/ubuntu/claude-ai-agent/data/
+# Ensure correct ownership
+sudo chown ubuntu:ubuntu /home/ubuntu/claude-ai-agent/data/agent_database.db
 
 # Set proper permissions
-chmod 755 /home/ubuntu/claude-ai-agent/data/
 chmod 664 /home/ubuntu/claude-ai-agent/data/agent_database.db
+
+# Ensure data directory exists
+mkdir -p /home/ubuntu/claude-ai-agent/data
 ```
 
 **B. Recreate Database:**
@@ -178,126 +180,46 @@ chmod 664 /home/ubuntu/claude-ai-agent/data/agent_database.db
 cd /home/ubuntu/claude-ai-agent/backend
 source venv/bin/activate
 
-# Backup existing database (if it exists)
-cp /home/ubuntu/claude-ai-agent/data/agent_database.db \
-   /home/ubuntu/claude-ai-agent/backups/database_backup_$(date +%Y%m%d).db
+# Backup existing database if it exists
+if [ -f "../data/agent_database.db" ]; then
+    cp ../data/agent_database.db ../data/agent_database.db.backup
+fi
 
 # Recreate database
-python -c "
-from database import init_database
-init_database()
-print('✅ Database initialized')
-"
+python -c "from database import init_database; init_database()"
 ```
 
-### 4. Nginx Configuration Problems
-
-**Symptoms:**
-- 502 Bad Gateway errors
-- Cannot access site from browser
-- Nginx won't start
-
-**Diagnosis:**
-```bash
-# Check Nginx status
-sudo systemctl status nginx
-
-# Test Nginx configuration
-sudo nginx -t
-
-# Check Nginx logs
-sudo tail -f /var/log/nginx/error.log
-```
-
-**Solutions:**
-
-**A. Fix Configuration Errors:**
-```bash
-# Test configuration syntax
-sudo nginx -t
-
-# If errors found, edit configuration
-sudo nano /etc/nginx/sites-available/claude-agent
-
-# Reload configuration
-sudo nginx -s reload
-```
-
-**B. Restart Nginx:**
-```bash
-sudo systemctl stop nginx
-sudo systemctl start nginx
-sudo systemctl status nginx
-```
-
-**C. Reset Nginx Configuration:**
-```bash
-# Backup current configuration
-sudo cp /etc/nginx/sites-available/claude-agent \
-       /etc/nginx/sites-available/claude-agent.backup
-
-# Create fresh configuration
-sudo nano /etc/nginx/sites-available/claude-agent
-
-# Paste working configuration:
-server {
-    listen 80;
-    server_name _;
-    
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-    
-    location /api {
-        proxy_pass http://localhost:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-
-# Test and reload
-sudo nginx -t && sudo nginx -s reload
-```
-
-### 5. High Memory Usage
+### 4. High Resource Usage
 
 **Symptoms:**
 - System running slowly
+- High CPU or memory usage
 - Out of memory errors
-- Processes being killed
 
 **Diagnosis:**
 ```bash
-# Check memory usage
+# Check resource usage
+top -bn1 | head -20
+
+# Check specific process usage
+ps aux | grep claude
+
+# Check memory details
 free -h
 
-# Check which processes use most memory
-ps aux --sort=-%mem | head -10
-
-# Check for memory leaks
-pm2 monit
+# Check disk usage
+df -h
 ```
 
 **Solutions:**
 
-**A. Restart High-Memory Processes:**
+**A. Memory Optimization:**
 ```bash
+# Restart services to free memory
 pm2 restart all
-```
 
-**B. Increase Swap Space:**
-```bash
-# Check current swap
-swapon --show
-
-# Create swap file if none exists
-sudo fallocate -l 2G /swapfile
+# Increase swap if needed (temporary fix)
+sudo fallocate -l 1G /swapfile
 sudo chmod 600 /swapfile
 sudo mkswap /swapfile
 sudo swapon /swapfile
@@ -306,177 +228,130 @@ sudo swapon /swapfile
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 ```
 
-**C. Optimize Memory Settings:**
+**B. Process Limits:**
 ```bash
-# Configure PM2 with memory limits
-pm2 delete all
-
+# Set PM2 memory limits
 pm2 start "uvicorn main:app --host 0.0.0.0 --port 8000" \
     --name claude-backend \
-    --max-memory-restart 500M
+    --max-memory-restart 400M
 
 pm2 start "npx serve -s build -l 3000" \
     --name claude-frontend \
     --max-memory-restart 200M
-
-pm2 save
 ```
 
-### 6. SSL/HTTPS Issues
+### 5. SSL/HTTPS Issues
 
 **Symptoms:**
-- SSL certificate warnings
-- Mixed content errors
+- Certificate warnings in browser
 - HTTPS not working
+- Mixed content errors
 
 **Diagnosis:**
 ```bash
-# Check SSL certificate
-openssl x509 -in /path/to/certificate.crt -text -noout
-
-# Check SSL configuration
+# Check nginx configuration
 sudo nginx -t
 
-# Test SSL connectivity
-curl -I https://your-domain.com
+# Check SSL certificates
+sudo certbot certificates
+
+# Check certificate expiration
+openssl x509 -in /path/to/certificate.crt -text -noout | grep "Not After"
 ```
 
 **Solutions:**
 
-**A. Generate Self-Signed Certificate (Development):**
+**A. Install Let's Encrypt Certificate:**
 ```bash
-sudo mkdir -p /etc/nginx/ssl
-sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    -keyout /etc/nginx/ssl/nginx-selfsigned.key \
-    -out /etc/nginx/ssl/nginx-selfsigned.crt
+# Install certbot
+sudo apt-get install -y certbot python3-certbot-nginx
 
-# Update Nginx configuration for SSL
-sudo nano /etc/nginx/sites-available/claude-agent
-```
-
-**B. Use Let's Encrypt (Production):**
-```bash
-# Install Certbot
-sudo apt-get install certbot python3-certbot-nginx
-
-# Get certificate
+# Get certificate (replace with your domain)
 sudo certbot --nginx -d your-domain.com
 
-# Test auto-renewal
+# Test automatic renewal
 sudo certbot renew --dry-run
 ```
 
-### 7. API Rate Limiting Issues
-
-**Symptoms:**
-- "Rate limit exceeded" errors
-- Slow API responses
-- 429 HTTP status codes
-
-**Diagnosis:**
+**B. Update Nginx Configuration:**
 ```bash
-# Check recent API errors
-grep -i "rate limit" /home/ubuntu/claude-ai-agent/logs/app.log | tail -10
+# Edit nginx configuration
+sudo nano /etc/nginx/sites-available/claude-agent
 
-# Check API usage
-./scripts/cost-monitor.sh
-
-# Check Anthropic API status
-curl -s https://status.anthropic.com/api/v2/status.json | jq '.status.description'
-```
-
-**Solutions:**
-
-**A. Implement Request Queuing:**
-```bash
-# Edit backend configuration to add delays
-nano /home/ubuntu/claude-ai-agent/.env
-
-# Add or adjust:
-RATE_LIMIT_REQUESTS=50
-RATE_LIMIT_WINDOW=3600
-```
-
-**B. Monitor and Optimize Usage:**
-```bash
-# Check token usage patterns
-sqlite3 /home/ubuntu/claude-ai-agent/data/agent_database.db << SQL
-SELECT 
-    DATE(timestamp) as date,
-    COUNT(*) as requests,
-    SUM(tokens_used) as tokens,
-    AVG(tokens_used) as avg_tokens
-FROM conversation_logs 
-WHERE timestamp > datetime('now', '-7 days')
-GROUP BY DATE(timestamp)
-ORDER BY date DESC;
-SQL
-```
-
-### 8. Disk Space Issues
-
-**Symptoms:**
-- "No space left on device" errors
-- Application crashes
-- Cannot write logs or save data
-
-**Diagnosis:**
-```bash
-# Check disk usage
-df -h
-
-# Find large files
-du -h /home/ubuntu/claude-ai-agent/ | sort -hr | head -20
-
-# Check log file sizes
-ls -lah /home/ubuntu/claude-ai-agent/logs/
-ls -lah /var/log/nginx/
-```
-
-**Solutions:**
-
-**A. Clean Up Log Files:**
-```bash
-# Compress old logs
-gzip /home/ubuntu/claude-ai-agent/logs/*.log.202*
-
-# Clear Nginx logs
-sudo truncate -s 0 /var/log/nginx/access.log
-sudo truncate -s 0 /var/log/nginx/error.log
-
-# Clean PM2 logs
-pm2 flush
-```
-
-**B. Clean System Files:**
-```bash
-# Clean package cache
-sudo apt-get clean
-sudo apt-get autoremove
-
-# Clean temporary files
-sudo rm -rf /tmp/*
-sudo rm -rf /var/tmp/*
-```
-
-**C. Set Up Log Rotation:**
-```bash
-# Create logrotate configuration
-sudo nano /etc/logrotate.d/claude-agent
-
-# Add:
-/home/ubuntu/claude-ai-agent/logs/*.log {
-    daily
-    missingok
-    rotate 7
-    compress
-    delaycompress
-    copytruncate
-    notifempty
+# Add SSL configuration (example)
+server {
+    listen 443 ssl http2;
+    server_name your-domain.com;
+    
+    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+    
+    # Your existing location blocks here
 }
+
+# Test and reload
+sudo nginx -t
+sudo systemctl reload nginx
 ```
 
-### 9. Performance Issues
+## Advanced Troubleshooting
+
+### Database Recovery
+```bash
+# Create database recovery script
+cat > /home/ubuntu/claude-ai-agent/scripts/db-recovery.sh << 'EOF'
+#!/bin/bash
+
+echo "=== DATABASE RECOVERY SCRIPT ==="
+DB_PATH="/home/ubuntu/claude-ai-agent/data/agent_database.db"
+BACKUP_PATH="/home/ubuntu/claude-ai-agent/backups/db_recovery_$(date +%Y%m%d_%H%M%S).db"
+
+# 1. Create backup of current database
+if [ -f "$DB_PATH" ]; then
+    echo "Creating backup of current database..."
+    cp "$DB_PATH" "$BACKUP_PATH"
+    echo "Backup created: $BACKUP_PATH"
+fi
+
+# 2. Check database integrity
+if [ -f "$DB_PATH" ]; then
+    echo "Checking database integrity..."
+    INTEGRITY_CHECK=$(sqlite3 "$DB_PATH" "PRAGMA integrity_check;" 2>/dev/null)
+    if [ "$INTEGRITY_CHECK" = "ok" ]; then
+        echo "✅ Database integrity is OK"
+    else
+        echo "❌ Database integrity check failed"
+        echo "Attempting to repair..."
+        
+        # 3. Attempt repair
+        sqlite3 "$DB_PATH" ".recover" > /tmp/recovered.sql 2>/dev/null
+        if [ $? -eq 0 ] && [ -s /tmp/recovered.sql ]; then
+            mv "$DB_PATH" "${DB_PATH}.corrupted"
+            sqlite3 "$DB_PATH" < /tmp/recovered.sql
+            echo "✅ Database recovered from corruption"
+        else
+            # 4. Recreate from scratch if repair fails
+            echo "Repair failed, recreating database..."
+            rm "$DB_PATH"
+            cd /home/ubuntu/claude-ai-agent/backend
+            source venv/bin/activate
+            python -c "from database import init_database; init_database()"
+            echo "✅ Database recreated"
+        fi
+    fi
+fi
+
+# 5. Set proper permissions
+chmod 664 "$DB_PATH"
+chown ubuntu:ubuntu "$DB_PATH"
+
+echo "=== DATABASE RECOVERY COMPLETE ==="
+EOF
+
+chmod +x /home/ubuntu/claude-ai-agent/scripts/db-recovery.sh
+```
+
+### Performance Issues
 
 **Symptoms:**
 - Slow response times
@@ -611,153 +486,23 @@ echo "Checking system resources..."
 df -h
 free -h
 
-# 3. Clean up if low on space
-if [ $(df / | awk 'NR==2 {print $5}' | sed 's/%//') -gt 90 ]; then
-    echo "Cleaning up disk space..."
-    sudo apt-get clean
-    pm2 flush
-    find /home/ubuntu/claude-ai-agent/logs -name "*.log.*" -delete
-fi
+# 3. Clean temporary files
+sudo apt-get clean
+sudo apt-get autoremove -y
+rm -rf /tmp/*
+pm2 flush
 
-# 4. Reset database if corrupted
-if ! sqlite3 /home/ubuntu/claude-ai-agent/data/agent_database.db ".tables" &>/dev/null; then
-    echo "Database appears corrupted, backing up and recreating..."
-    mv /home/ubuntu/claude-ai-agent/data/agent_database.db \
-       /home/ubuntu/claude-ai-agent/backups/corrupted_$(date +%Y%m%d_%H%M%S).db
-    
-    cd /home/ubuntu/claude-ai-agent/backend
-    source venv/bin/activate
-    python -c "from database import init_database; init_database()"
-fi
-
-# 5. Restart services
-echo "Restarting services..."
-pm2 start all
+# 4. Restart services
 sudo systemctl start nginx
+pm2 restart all
 
-# 6. Wait and test
+# 5. Verify recovery
 sleep 10
 if curl -s http://localhost:8000/health > /dev/null; then
-    echo "✅ Recovery successful - API responding"
+    echo "✅ System recovered successfully"
 else
-    echo "❌ Recovery failed - API not responding"
+    echo "❌ Recovery failed - manual intervention needed"
 fi
-
-echo "=== RECOVERY PROCEDURE COMPLETE ==="
-```
-
-### Database Recovery
-```bash
-# Create database recovery script
-cat > /home/ubuntu/claude-ai-agent/scripts/db-recovery.sh << 'EOF'
-#!/bin/bash
-
-DB_PATH="/home/ubuntu/claude-ai-agent/data/agent_database.db"
-BACKUP_DIR="/home/ubuntu/claude-ai-agent/backups"
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-
-echo "=== DATABASE RECOVERY ==="
-
-# 1. Check database integrity
-echo "Checking database integrity..."
-if sqlite3 "$DB_PATH" "PRAGMA integrity_check;" | grep -q "ok"; then
-    echo "✅ Database integrity OK"
-else
-    echo "❌ Database corruption detected"
-    
-    # 2. Create backup of corrupted database
-    echo "Creating backup of corrupted database..."
-    cp "$DB_PATH" "$BACKUP_DIR/corrupted_$TIMESTAMP.db"
-    
-    # 3. Attempt repair
-    echo "Attempting database repair..."
-    sqlite3 "$DB_PATH" << SQL
-.recover /tmp/recovered_database.db
-SQL
-    
-    if [ -f "/tmp/recovered_database.db" ]; then
-        mv "/tmp/recovered_database.db" "$DB_PATH"
-        echo "✅ Database recovery attempted"
-    else
-        # 4. Recreate from scratch if repair fails
-        echo "Repair failed, recreating database..."
-        rm "$DB_PATH"
-        cd /home/ubuntu/claude-ai-agent/backend
-        source venv/bin/activate
-        python -c "from database import init_database; init_database()"
-        echo "✅ Database recreated"
-    fi
-fi
-
-# 5. Set proper permissions
-chmod 664 "$DB_PATH"
-chown ubuntu:ubuntu "$DB_PATH"
-
-echo "=== DATABASE RECOVERY COMPLETE ==="
-EOF
-
-chmod +x /home/ubuntu/claude-ai-agent/scripts/db-recovery.sh
-```
-
-## Advanced Troubleshooting
-
-### Network Connectivity Issues
-```bash
-# Test network connectivity
-ping -c 4 8.8.8.8
-
-# Test DNS resolution
-nslookup api.anthropic.com
-
-# Check firewall status
-sudo ufw status
-
-# Test specific ports
-telnet localhost 8000
-telnet localhost 3000
-
-# Check routing
-traceroute api.anthropic.com
-```
-
-### Memory Leak Detection
-```bash
-# Monitor memory usage over time
-cat > /home/ubuntu/claude-ai-agent/scripts/memory-monitor.sh << 'EOF'
-#!/bin/bash
-
-LOG_FILE="/home/ubuntu/claude-ai-agent/logs/memory-monitor.log"
-
-while true; do
-    TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-    BACKEND_MEM=$(ps aux | grep "uvicorn main:app" | grep -v grep | awk '{print $6}')
-    FRONTEND_MEM=$(ps aux | grep "serve -s build" | grep -v grep | awk '{print $6}')
-    TOTAL_MEM=$(free | grep Mem | awk '{printf "%.1f", ($3/$2) * 100.0}')
-    
-    echo "$TIMESTAMP,Backend:$BACKEND_MEM,Frontend:$FRONTEND_MEM,Total:$TOTAL_MEM%" >> $LOG_FILE
-    sleep 60
-done
-EOF
-
-chmod +x /home/ubuntu/claude-ai-agent/scripts/memory-monitor.sh
-
-# Run in background
-nohup ./scripts/memory-monitor.sh &
-```
-
-### Process Debugging
-```bash
-# Debug hanging processes
-ps aux | grep claude
-
-# Check process details
-sudo lsof -p PID_NUMBER
-
-# Monitor system calls
-sudo strace -p PID_NUMBER
-
-# Check for zombie processes
-ps aux | grep defunct
 ```
 
 ## Preventive Maintenance
@@ -769,34 +514,29 @@ cat > /home/ubuntu/claude-ai-agent/scripts/health-monitor.sh << 'EOF'
 #!/bin/bash
 
 ALERT_LOG="/home/ubuntu/claude-ai-agent/logs/health-alerts.log"
-THRESHOLD_CPU=80
-THRESHOLD_MEMORY=85
-THRESHOLD_DISK=90
 
 # Function to log alerts
 log_alert() {
     echo "$(date): $1" >> $ALERT_LOG
 }
 
-# Check CPU
+# Check system resources
 CPU_USAGE=$(top -bn1 | grep load | awk '{printf "%.0f", $(NF-2)*100}')
-if [ $CPU_USAGE -gt $THRESHOLD_CPU ]; then
-    log_alert "HIGH CPU: ${CPU_USAGE}%"
+if [ $CPU_USAGE -gt 90 ]; then
+    log_alert "CRITICAL: High CPU usage: ${CPU_USAGE}%"
 fi
 
-# Check Memory
 MEMORY_USAGE=$(free | grep Mem | awk '{printf "%.0f", ($3/$2) * 100.0}')
-if [ $MEMORY_USAGE -gt $THRESHOLD_MEMORY ]; then
-    log_alert "HIGH MEMORY: ${MEMORY_USAGE}%"
+if [ $MEMORY_USAGE -gt 90 ]; then
+    log_alert "CRITICAL: High memory usage: ${MEMORY_USAGE}%"
 fi
 
-# Check Disk
 DISK_USAGE=$(df / | awk 'NR==2 {print $5}' | sed 's/%//')
-if [ $DISK_USAGE -gt $THRESHOLD_DISK ]; then
-    log_alert "HIGH DISK: ${DISK_USAGE}%"
+if [ $DISK_USAGE -gt 90 ]; then
+    log_alert "CRITICAL: High disk usage: ${DISK_USAGE}%"
 fi
 
-# Check API Health
+# Check API status
 if ! curl -s --max-time 10 http://localhost:8000/health > /dev/null; then
     log_alert "API NOT RESPONDING"
     # Attempt automatic recovery
@@ -946,10 +686,59 @@ alias claude-monitor='./scripts/monitor.sh'
 source ~/.bashrc
 ```
 
+## Troubleshooting Checklist
+
+### When Things Go Wrong
+1. **Check system resources** - CPU, memory, disk space
+2. **Verify services** - PM2 processes, Nginx status
+3. **Test connectivity** - API endpoints, database access
+4. **Review logs** - Application logs, system logs, PM2 logs
+5. **Check configuration** - Environment variables, file permissions
+6. **Test API key** - Verify Anthropic API connectivity
+7. **Restart services** - PM2 processes, Nginx
+8. **Check network** - Firewall rules, port availability
+
+### Emergency Contacts
+- **System logs**: `/var/log/syslog`
+- **Application logs**: `/home/ubuntu/claude-ai-agent/logs/app.log`
+- **Health check**: `./scripts/health-check.sh`
+- **Recovery script**: `./scripts/recover.sh`
+- **Support logs**: `./scripts/collect-support-logs.sh`
+
+## Common Commands Reference
+
+```bash
+# Service Management
+pm2 status                    # Check all processes
+pm2 restart all              # Restart all services
+pm2 logs                     # View all logs
+sudo systemctl restart nginx # Restart web server
+
+# Health Monitoring
+curl localhost:8000/health   # API health check
+./scripts/health-check.sh    # Comprehensive health
+./scripts/monitor.sh         # System monitoring
+
+# Log Analysis
+tail -f logs/app.log         # Follow application logs
+grep -i error logs/app.log   # Find errors
+pm2 logs claude-backend      # Backend specific logs
+
+# Database Operations
+sqlite3 data/agent_database.db ".tables"  # List tables
+./scripts/db-monitor.sh      # Database statistics
+./scripts/db-recovery.sh     # Database recovery
+
+# System Maintenance
+./scripts/backup.sh          # Create backup
+./scripts/cleanup.sh         # Clean old files
+sudo apt-get update && sudo apt-get upgrade -y  # Update system
+```
+
 For additional help with specific issues, refer to:
-- [Installation Guide](INSTALLATION.md) for setup problems
-- [Configuration Guide](CONFIGURATION.md) for configuration issues  
-- [Monitoring Guide](MONITORING.md) for performance problems
-- [API Documentation](API.md) for API-related issues
+- [Installation Guide](installation-guide.md) for setup problems
+- [Configuration Guide](configuration-guide.md) for configuration issues  
+- [Monitoring Guide](monitoring-guide.md) for performance problems
+- [API Documentation](api-documentation.md) for API-related issues
 
 If problems persist, collect support logs using `./scripts/collect-support-logs.sh` and consult the Claude AI Agent community or documentation.
