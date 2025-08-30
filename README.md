@@ -50,6 +50,14 @@ I can't write about anything successfully if I haven't tried it myself. So every
 
 You get my setup instructions, sample projects, but most importantly, the real experience of what it's like to work with these technologies. Some of it will be a refresh, while others will                                    be completely new.
 
+## 📚 Learning Foundation
+
+Before diving into the advanced topics, I've created a comprehensive learning roadmap for anyone wanting to build solid programming fundamentals:
+
+**[Complete Programming Pathway](pathway.md)** - A structured 6-month guide covering C and Python from basics to job-ready skills. This came from my own experience needing to refresh and systematize my development skills when transitioning from technical roles to hands-on coding.
+
+*Why this matters:* The quantum computing, AI, and emerging tech projects in this repo assume you're comfortable with programming fundamentals. If you're coming from a technical background but need to brush up on active development, the pathway will get you there.
+
 ## Contributing
 
 Found a bug? Have a suggestion? Want to improve an example? 
